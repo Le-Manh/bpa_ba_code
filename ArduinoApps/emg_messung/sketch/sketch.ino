@@ -103,7 +103,9 @@ void loop() {
         //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
         Monitor.print("Squared Data: ");
         Monitor.println(envlope);
-        Bridge.notify("envlope_read",envlope); // Daten an das Python Skript
+        
+        Bridge.notify("envlope_read",envlope); // Daten an das Python Skript  
+        
         Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us
         
