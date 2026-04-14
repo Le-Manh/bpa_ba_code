@@ -104,7 +104,6 @@ void loop() {
         
     }
 
-    Monitor.print("Neue Messung \n");
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to
     // do your work
