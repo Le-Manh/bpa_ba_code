@@ -32,9 +32,11 @@
 #ifndef _EMGFILTERS_H
 #define _EMGFILTERS_H
 
-enum NOTCH_FREQUENCY { NOTCH_FREQ_50HZ = 50, NOTCH_FREQ_60HZ = 60 };
+#define SAMPLE_FREQ_500HZ 500
+#define SAMPLE_FREQ_1000HZ 1000
 
-enum SAMPLE_FREQUENCY { SAMPLE_FREQ_500HZ = 500, SAMPLE_FREQ_1000HZ = 1000 };
+#define NOTCH_FREQ_50HZ 50
+#define NOTCH_FREQ_60HZ 60
 
 // \brief EMGFilter provides an anti-hum notch filter to filter out 50HZ or
 //        60HZ power line noise, a lowpass filter to filter out signals above
@@ -54,8 +56,8 @@ class EMGFilters {
     // default
     // \remark The filter won't work and just bypass input if sampleFreq or
     //         notchFreq isn't specified properly.
-    void init(SAMPLE_FREQUENCY sampleFreq,
-              NOTCH_FREQUENCY  notchFreq,
+    void init(int sampleFreq,
+              int  notchFreq,
               bool             enableNotchFilter    = true,
               bool             enableLowpassFilter  = true,
               bool             enableHighpassFilter = true);
@@ -65,8 +67,8 @@ class EMGFilters {
     int update(int inputValue);
 
   private:
-    SAMPLE_FREQUENCY m_sampleFreq;
-    NOTCH_FREQUENCY  m_notchFreq;
+    int              m_sampleFreq;
+    int              m_notchFreq;
     bool             m_bypassEnabled;
     bool             m_notchFilterEnabled;
     bool             m_lowpassFilterEnabled;

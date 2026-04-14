@@ -186,8 +186,8 @@ FILTER_2nd LPF;
 FILTER_2nd HPF;
 FILTER_4th AHF;
 
-void EMGFilters::init(SAMPLE_FREQUENCY sampleFreq,
-                     NOTCH_FREQUENCY  notchFreq,
+void EMGFilters::init(int sampleFreq,
+                     int  notchFreq,
                      bool             enableNotchFilter,
                      bool             enableLowpassFilter,
                      bool             enableHighpassFilter) {
