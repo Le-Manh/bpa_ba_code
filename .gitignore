@@ -8,6 +8,7 @@
 ## ignore GIT-bundles
 *.git
 .gitconfig
+.git-credentials
 
 # Prerequisites
 *.d
