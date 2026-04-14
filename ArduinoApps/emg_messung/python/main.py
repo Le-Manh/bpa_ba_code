@@ -1,6 +1,10 @@
 import time
 from arduino.app_utils import App
-from arduino.app_utils import Leds
+from arduino.app_utils import Bridge
+from arduino.app_utils import Leds # let the LED blink so we know something is happening
+
+def envlope_read(envlope: int):
+    print(envlope)
 
 def loop():
     # Blink LED 1 in red
@@ -11,5 +15,8 @@ def loop():
     # Turn off the LED (0, 0, 0)
     Leds.set_led1_color(0,0,0)
     time.sleep(1)
+
+    Bridge.provide("envlope_read", envlope_read)
+
 
 App.run(user_loop=loop)
