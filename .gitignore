@@ -5,6 +5,8 @@
 .face
 .profile
 .sudo_as_admin_successful
+.lesshst
+lost+found/
 ## ignore GIT-bundles
 *.git
 .gitconfig
