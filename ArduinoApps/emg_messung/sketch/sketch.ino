@@ -1,33 +1,33 @@
 /*
- * Copyright 2017, OYMotion Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
- * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
- * DAMAGE.
- *
- */
+* Copyright 2017, OYMotion Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+*
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in
+*    the documentation and/or other materials provided with the
+*    distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+* COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+* THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+* DAMAGE.
+*
+*/
 
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
@@ -40,6 +40,8 @@
 #define TIMING_DEBUG 1
 
 #define SensorInputPin A0 // input pin number
+
+#include "Arduino_RouterBridge.h"
 
 EMGFilters myFilter;
 // discrete filters must works with fixed sample frequence
@@ -55,20 +57,20 @@ int humFreq = NOTCH_FREQ_50HZ;
 
 // Calibration:
 // put on the sensors, and release your muscles;
-// wait a few seconds, and select the max value as the threshold;
-// any value under threshold will be set to zero
-static int Threshold = 0;
+// wait a few seconds, and select the max value as the throhold;
+// any value under throhold will be set to zero
+static int Throhold = 0;
 
 unsigned long timeStamp;
 unsigned long timeBudget;
 
 void setup() {
     /* add setup code here */
+      
     myFilter.init(sampleRate, humFreq, true, true, true);
 
     // open serial
-    Serial.begin(115200);
-
+    Monitor.begin(9600);
     // setup for time cost measure
     // using micros()
     timeBudget = 1e6 / sampleRate;
@@ -88,19 +90,21 @@ void loop() {
     int DataAfterFilter = myFilter.update(Value);
 
     int envlope = sq(DataAfterFilter);
-    // any value under threshold will be set to zero
-    envlope = (envlope > Threshold) ? envlope : 0;
+    // any value under throhold will be set to zero
+    envlope = (envlope > Throhold) ? envlope : 0;
 
     timeStamp = micros() - timeStamp;
     if (TIMING_DEBUG) {
         // Serial.print("Read Data: "); Serial.println(Value);
-        // Serial.print("Filtered Data: ");Serial.println(DataAfterFilter);
-        Serial.print("Squared Data: ");
-        Serial.println(envlope);
-        // Serial.print("Filters cost time: "); Serial.println(timeStamp);
+        //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
+        Monitor.print("Squared Data: ");
+        Monitor.println(envlope);
+        Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us
+        
     }
 
+    Monitor.print("Neue Messung \n");
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to
     // do your work
