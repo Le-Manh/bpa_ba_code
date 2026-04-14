@@ -1,3 +1,10 @@
+## ignore the hidden files in Arduino Home Library
+.arduino15/
+.bash_history
+.bashrc
+.face
+.profile
+.sudo_as_admin_successful
 ## ignore GIT-bundles
 *.git
 
