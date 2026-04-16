@@ -72,6 +72,8 @@ void button_Interrupt()
   messungState = !messungState;
 }
 
+bool WERTE_VORHANDEN = false;
+
 // Calibration:
 // put on the sensors, and release your muscles;
 // wait a few seconds, and select the max value as the throhold;
@@ -128,12 +130,19 @@ void loop() {
         //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
         //Monitor.print("Squared Data: ");
         //Monitor.println(envlope);
-        
-        Bridge.notify("envlope_read",envlope); // Daten an das Python Skript  
-        
         //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
-        // the filter cost average around 520 us
-        
+        // the filter cost average around 520 us  
+    }
+  
+    if (messungState) {
+      Bridge.call("messung",true);
+      Bridge.call("envlope_read",envlope); // Daten an das Python Skript
+      WERTE_VORHANDEN = true;
+    }
+    else {
+      Bridge.call("messung",false);
+      Bridge.call("messung_speichern", WERTE_VORHANDEN);
+      WERTE_VORHANDEN = false;
     }
     digitalWrite(ledPin,ledState);
     
