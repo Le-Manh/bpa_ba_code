@@ -55,6 +55,23 @@ int sampleRate = SAMPLE_FREQ_1000HZ;
 // other inputs will bypass all the EMG_FILTER
 int humFreq = NOTCH_FREQ_50HZ;
 
+//Aus der Veranstaltung Vertiefung Medizininformatik
+int currentFinger;     // Definiert den Messzustand des Systems
+enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
+
+// Feedback-LED und Interrupt Variablen
+const byte ledPin = 12;
+const byte interruptPin = 2;
+volatile byte ledState = LOW;
+volatile bool messungState = false;
+
+//Interrupt (ISR)
+void button_Interrupt()
+{
+  ledState = !ledState;
+  messungState = !messungState;
+}
+
 // Calibration:
 // put on the sensors, and release your muscles;
 // wait a few seconds, and select the max value as the throhold;
@@ -79,6 +96,14 @@ void setup() {
     // using micros()
     timeBudget = 1e6 / sampleRate;
     // micros will overflow and auto return to zero every 70 minutes
+
+    //Feedback-LED Setup
+    pinMode(ledPin, OUTPUT);
+
+    //Interrupt-Setup
+    pinMode(interruptPin,INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(interruptPin),button_Interrupt,FALLING); //attachInterrupt(pin, ISR, mode)
+    
 }
 
 void loop() {
@@ -101,16 +126,19 @@ void loop() {
     if (TIMING_DEBUG) {
         // Serial.print("Read Data: "); Serial.println(Value);
         //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
-        Monitor.print("Squared Data: ");
-        Monitor.println(envlope);
+        //Monitor.print("Squared Data: ");
+        //Monitor.println(envlope);
         
         Bridge.notify("envlope_read",envlope); // Daten an das Python Skript  
         
-        Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
+        //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us
         
     }
+    digitalWrite(ledPin,ledState);
+    
 
+  
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to
     // do your work

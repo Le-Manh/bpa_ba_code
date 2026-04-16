@@ -11,4 +11,6 @@ profiles:
       - dependency: Arduino_RPClite (0.2.1)
       - Arduino_RouterBridge (0.4.1)
       - dir: EMG_Filter/EMGFilters
+      - EnableInterrupt (1.1.0)
+
 default_profile: default
