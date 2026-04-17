@@ -37,9 +37,12 @@
 
 #include "EMGFilters.h"
 
-#define TIMING_DEBUG 1
+#define TIMING_DEBUG 0
 
 #define SensorInputPin A0 // input pin number
+#define SensorInputPin1 A1 // input pin number
+#define SensorInputPin2 A2 // input pin number
+#define SensorInputPin3 A3 // input pin number
 
 #include "Arduino_RouterBridge.h"
 
@@ -58,6 +61,9 @@ int humFreq = NOTCH_FREQ_50HZ;
 //Aus der Veranstaltung Vertiefung Medizininformatik
 int currentFinger;     // Definiert den Messzustand des Systems
 enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
+
+//Sensordaten 
+int sensoren[4] = {SensorInputPin,SensorInputPin1,SensorInputPin2,SensorInputPin3};
 
 // Feedback-LED und Interrupt Variablen
 const byte ledPin = 12;
@@ -89,6 +95,23 @@ void hochzaehlenFinger()
   else currentFinger = littleFinger;            // anderenfalls wird currentFinger = kleiner Finger gesetzt
 }
 
+int messung_sensoren(int sensor)
+{
+  
+    int Value = analogRead(sensor);
+
+    // filter processing
+    int DataAfterFilter = myFilter.update(Value);
+
+    int envlope = sq(DataAfterFilter);
+    
+    // any value under throhold will be set to zero
+    envlope = (envlope > Throhold) ? envlope : 0;
+    
+  return envlope;
+}
+
+
 void setup() {
     /* add setup code here */
       
@@ -109,6 +132,12 @@ void setup() {
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
 
+    // SensorPins konfigurieren, alle als Input
+    for(int i=0; i< 5; i++)
+      {
+        pinMode(sensoren[i],INPUT);
+      }
+  
     // Mapping der Finger, start Punkt
     currentFinger = littleFinger;
     
@@ -124,32 +153,31 @@ void loop() {
     // the time cost should be measured each loop
     /*------------start here-------------------*/
     timeStamp = micros();
-
-    int Value = analogRead(SensorInputPin);
-
-    // filter processing
-    int DataAfterFilter = myFilter.update(Value);
-
-    int envlope = sq(DataAfterFilter);
-    // any value under throhold will be set to zero
-    envlope = (envlope > Throhold) ? envlope : 0;
-
+      
+    int werte[4];
+    for(int i = 0; i < 5; i++)
+      {
+        werte[i] = messung_sensoren(sensoren[i]);
+      }
+  
     timeStamp = micros() - timeStamp;
     if (TIMING_DEBUG) {
         // Serial.print("Read Data: "); Serial.println(Value);
         //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
         Monitor.print("Squared Data: ");
-        Monitor.println(envlope);
+        Monitor.println(werte[0]);
         //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us  
     }
   
     if (messungState) {
       Bridge.call("messung",true);
-      Bridge.call("envlope_read",currentFinger,envlope); // Daten an das Python Skript
+      for(int i = 0; i < 5; i++)
+        {
+          Bridge.call("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript
+        }
       WERTE_VORHANDEN = true;
-    }
-    else {
+    } else {
       Bridge.call("messung",false);
       Bridge.call("messung_speichern", WERTE_VORHANDEN);
       WERTE_VORHANDEN = false;

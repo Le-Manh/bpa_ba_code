@@ -8,9 +8,9 @@ MESSUNG_BEENDET = False
 MESSUNG_STATE = False
 Werte_Liste = list()
 
-def envlope_read(finger: int,envlope: int):
+def envlope_read(finger: int,sensor,envlope: int):
     print(envlope)
-    Werte_Liste.append({"Aktueller Finger": finger, "Wert": envlope})
+    Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "Wert": envlope})
 
 def messung(state: bool):
     MESSUNG_STATE = state
@@ -18,7 +18,7 @@ def messung(state: bool):
 def messung_speichern(werteVorhanden: bool):
     if werteVorhanden:
         with open('test.csv', mode='w', encoding='utf-8', newline='') as file:
-            fieldnames = ["Aktueller Finger", "Wert"]    
+            fieldnames = Werte_Liste[0].keys()    
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(Werte_Liste)
