@@ -8,18 +8,22 @@ MESSUNG_BEENDET = False
 MESSUNG_STATE = False
 Werte_Liste = list()
 
-def envlope_read(envlope: int):
+def envlope_read(finger: int,envlope: int):
     print(envlope)
-    Werte_Liste.append(envlope)
+    Werte_Liste.append({"Aktueller Finger": finger, "Wert": envlope})
 
 def messung(state: bool):
     MESSUNG_STATE = state
 
 def messung_speichern(werteVorhanden: bool):
     if werteVorhanden:
-        with open('test.txt', mode='w', encoding='UTF8') as file:
-                for i in Werte_Liste:
-                    file.write(f"{str(i)}, ")
+        with open('test.csv', mode='w', encoding='utf-8', newline='') as file:
+            fieldnames = ["Aktueller Finger", "Wert"]    
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(Werte_Liste)
+        Bridge.notify("hochzaehlenFinger")
+
                     
 def loop():
     # Blink LED 1 in red

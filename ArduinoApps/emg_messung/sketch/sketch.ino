@@ -78,10 +78,16 @@ bool WERTE_VORHANDEN = false;
 // put on the sensors, and release your muscles;
 // wait a few seconds, and select the max value as the throhold;
 // any value under throhold will be set to zero
-static int Throhold = 0;
+static int Throhold = 600;
 
 unsigned long timeStamp;
 unsigned long timeBudget;
+
+void hochzaehlenFinger()
+{
+  if(currentFinger != thumb)  currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
+  else currentFinger = littleFinger;            // anderenfalls wird currentFinger = kleiner Finger gesetzt
+}
 
 void setup() {
     /* add setup code here */
@@ -93,7 +99,8 @@ void setup() {
 
     //start Brigde
     Bridge.begin();
-  
+    Bridge.provide("hochzaehlenFinger",hochzaehlenFinger); //provide counting of finger for MCU
+    
     // setup for time cost measure
     // using micros()
     timeBudget = 1e6 / sampleRate;
@@ -102,6 +109,9 @@ void setup() {
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
 
+    // Mapping der Finger, start Punkt
+    currentFinger = littleFinger;
+    
     //Interrupt-Setup
     pinMode(interruptPin,INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(interruptPin),button_Interrupt,FALLING); //attachInterrupt(pin, ISR, mode)
@@ -128,15 +138,15 @@ void loop() {
     if (TIMING_DEBUG) {
         // Serial.print("Read Data: "); Serial.println(Value);
         //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
-        //Monitor.print("Squared Data: ");
-        //Monitor.println(envlope);
+        Monitor.print("Squared Data: ");
+        Monitor.println(envlope);
         //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us  
     }
   
     if (messungState) {
       Bridge.call("messung",true);
-      Bridge.call("envlope_read",envlope); // Daten an das Python Skript
+      Bridge.call("envlope_read",currentFinger,envlope); // Daten an das Python Skript
       WERTE_VORHANDEN = true;
     }
     else {
