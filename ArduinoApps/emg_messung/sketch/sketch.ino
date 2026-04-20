@@ -64,6 +64,7 @@ enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
 
 //Sensordaten 
 int sensoren[4] = {SensorInputPin,SensorInputPin1,SensorInputPin2,SensorInputPin3};
+int sensoren_length = std::size(sensoren); //das geht seit C++17
 
 // Feedback-LED und Interrupt Variablen
 const byte ledPin = 12;
@@ -133,7 +134,7 @@ void setup() {
     pinMode(ledPin, OUTPUT);
 
     // SensorPins konfigurieren, alle als Input
-    for(int i=0; i< 5; i++)
+    for(int i=0; i < sensoren_length; i++)
       {
         pinMode(sensoren[i],INPUT);
       }
@@ -154,8 +155,8 @@ void loop() {
     /*------------start here-------------------*/
     timeStamp = micros();
       
-    int werte[4];
-    for(int i = 0; i < 5; i++)
+    int werte[sensoren_length];
+    for(int i = 0; i < sensoren_length; i++)
       {
         werte[i] = messung_sensoren(sensoren[i]);
       }
@@ -172,7 +173,7 @@ void loop() {
   
     if (messungState) {
       Bridge.call("messung",true);
-      for(int i = 0; i < 5; i++)
+      for(int i = 0; i < sensoren_length; i++)
         {
           Bridge.call("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript
         }

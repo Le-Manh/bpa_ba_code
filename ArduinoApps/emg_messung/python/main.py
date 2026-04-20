@@ -22,7 +22,7 @@ def messung_speichern(werteVorhanden: bool):
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(Werte_Liste)
-        Bridge.notify("hochzaehlenFinger")
+        Bridge.call("hochzaehlenFinger")
 
                     
 def loop():
