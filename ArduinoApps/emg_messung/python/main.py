@@ -5,6 +5,7 @@ from arduino.app_utils import Leds # let the LED blink so we know something is h
 import csv
 
 MESSUNG_BEENDET = False
+
 Werte_Liste = list()
 
 def envlope_read(finger: int,sensor,envlope: int):
@@ -13,6 +14,8 @@ def envlope_read(finger: int,sensor,envlope: int):
 
 def messung_speichern(werteVorhanden: bool):
     if werteVorhanden:
+        measurement_number = get_next_measurement_number()
+        filename = f"Messung_{measurement_number}.csv"
         with open('test.csv', mode='w', encoding='utf-8', newline='') as file:
             fieldnames = Werte_Liste[0].keys()    
             writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -20,6 +23,17 @@ def messung_speichern(werteVorhanden: bool):
             writer.writerows(Werte_Liste)
         Bridge.notify("hochzaehlenFinger")
 
+def get_next_measurement_number():
+    """Liest die letzte Messnummer aus der Datei und erhöht sie um 1."""
+    try:
+        with open("last_measurement.txt", "r") as f:
+            last_number = int(f.read().strip())
+    except FileNotFoundError:
+        last_number = 0
+    except ValueError:
+        print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
+        last_number = 0
+    return last_number + 1
                     
 def loop():
     # Blink LED 1 in red
