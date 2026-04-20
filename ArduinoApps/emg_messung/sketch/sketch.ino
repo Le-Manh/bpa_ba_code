@@ -46,6 +46,10 @@
 
 #include "Arduino_RouterBridge.h"
 
+//Visuell feedback for finger
+#include <Arduino_LED_Matrix.h>
+#include "LED_Matrix.h"
+
 EMGFilters myFilter;
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
@@ -118,10 +122,16 @@ int messung_sensoren(int sensor)
   return envlope;
 }
 
+Arduino_LED_Matrix matrix;
+uint8_t* matrix_feedback[] = {littleFinger_Frame, ringFinger_Frame, middleFinger_Frame, indexFinger_Frame, thumb_Frame};
 
 void setup() {
     /* add setup code here */
-      
+    //start Matrix
+    matrix.begin();
+    matrix.setGrayscaleBits(1);
+    matrix.draw(Hi_Frame);
+  
     myFilter.init(sampleRate, humFreq, true, true, true);
 
     // open serial
@@ -151,7 +161,8 @@ void setup() {
     //Interrupt-Setup
     pinMode(interruptPin,INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(interruptPin),button_Interrupt,FALLING); //attachInterrupt(pin, ISR, mode)
-    
+
+ 
 }
 
 void loop() {
@@ -160,13 +171,13 @@ void loop() {
     // the time cost should be measured each loop
     /*------------start here-------------------*/
     timeStamp = micros();
-      
+    
     int werte[sensoren_length];
     for(int i = 0; i < sensoren_length; i++)
       {
         werte[i] = messung_sensoren(sensoren[i]);
       }
-  
+    
     timeStamp = micros() - timeStamp;
     if (TIMING_DEBUG) {
         // Serial.print("Read Data: "); Serial.println(Value);
@@ -176,6 +187,9 @@ void loop() {
         //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
         // the filter cost average around 520 us  
     }
+  
+    matrix.draw(matrix_feedback[currentFinger]);
+   
   
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)

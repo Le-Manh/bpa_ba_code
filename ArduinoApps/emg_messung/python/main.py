@@ -31,6 +31,7 @@ def messung_speichern(werteVorhanden: bool):
             with open("python/messdaten/last_measurement.txt", "w") as f:
                 f.write(str(measurement_number))
             NEXT_MEASUREMENT = False
+            Bridge.notify("draw_next")
         
         with open(f'python/messdaten/{filename}', mode='w', encoding='utf-8', newline='') as file:
             fieldnames = Werte_Liste[0].keys()    
@@ -49,7 +50,6 @@ def get_next_measurement_number():
     except ValueError:
         print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
         last_number = 0
-        
     return last_number + 1
                     
 def loop():
