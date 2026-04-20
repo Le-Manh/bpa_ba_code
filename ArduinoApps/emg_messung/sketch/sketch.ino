@@ -37,7 +37,7 @@
 
 #include "EMGFilters.h"
 
-#define TIMING_DEBUG 1
+#define TIMING_DEBUG 0
 
 #define SensorInputPin A0 // input pin number
 #define SensorInputPin1 A1 // input pin number
@@ -79,7 +79,7 @@ void button_Interrupt()
   messungState = !messungState;
 }
 
-bool WERTE_VORHANDEN = false;
+bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 
 // Calibration:
 // put on the sensors, and release your muscles;
