@@ -90,10 +90,16 @@ static int Throhold = 600;
 unsigned long timeStamp;
 unsigned long timeBudget;
 
-void hochzaehlenFinger()
+int hochzaehlenFinger()
 {
-  if(currentFinger != thumb)  currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
-  else currentFinger = littleFinger;            // anderenfalls wird currentFinger = kleiner Finger gesetzt
+  if(currentFinger != thumb)
+  {
+    currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
+    return 0;
+  }else{ 
+    currentFinger = littleFinger;            // anderenfalls wird currentFinger = kleiner Finger gesetzt
+    return 1;
+  }
 }
 
 int messung_sensoren(int sensor)
@@ -172,15 +178,13 @@ void loop() {
     }
   
     if (messungState) {
-      Bridge.call("messung",true);
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.call("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript
+          Bridge.notify("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
       WERTE_VORHANDEN = true;
     } else {
-      Bridge.call("messung",false);
-      Bridge.call("messung_speichern", WERTE_VORHANDEN);
+      Bridge.notify("messung_speichern", WERTE_VORHANDEN);
       WERTE_VORHANDEN = false;
     }
     digitalWrite(ledPin,ledState);

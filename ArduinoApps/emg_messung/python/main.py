@@ -5,15 +5,11 @@ from arduino.app_utils import Leds # let the LED blink so we know something is h
 import csv
 
 MESSUNG_BEENDET = False
-MESSUNG_STATE = False
 Werte_Liste = list()
 
 def envlope_read(finger: int,sensor,envlope: int):
-    print(envlope)
+    #print(envlope)
     Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "Wert": envlope})
-
-def messung(state: bool):
-    MESSUNG_STATE = state
 
 def messung_speichern(werteVorhanden: bool):
     if werteVorhanden:
@@ -22,7 +18,7 @@ def messung_speichern(werteVorhanden: bool):
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(Werte_Liste)
-        Bridge.call("hochzaehlenFinger")
+        Bridge.notify("hochzaehlenFinger")
 
                     
 def loop():
@@ -35,7 +31,6 @@ def loop():
     Leds.set_led1_color(0,0,0)
     time.sleep(1)
 
-Bridge.provide("messung",messung)
 Bridge.provide("envlope_read", envlope_read)
 Bridge.provide("messung_speichern",messung_speichern)
 App.run(user_loop=loop)
