@@ -112,9 +112,9 @@ int messung_sensoren(int sensor)
     int Value = analogRead(sensor);
 
     // filter processing
-    int DataAfterFilter = myFilter.update(Value);
+    long DataAfterFilter = myFilter.update(Value);
 
-    int envlope = sq(DataAfterFilter);
+    long envlope = sq(DataAfterFilter);
     
     // any value under throhold will be set to zero
     envlope = (envlope > Throhold) ? envlope : 0;
