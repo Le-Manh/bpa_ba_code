@@ -12,7 +12,7 @@ def envlope_read(finger: int,sensor: int,envlope: int):
     """Packt die Daten aus den Sensoren in ein Dict, damit es als csv abgespeichert werden kann"""
     global NEXT_MEASUREMENT # Hiermit wird getrackt, ob eine neue Datei erstellt werden soll
     global Werte_Liste # Unsere Werte in einer Liste
-    #print(envlope)
+    print(envlope)
     Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "Wert": envlope})
     if finger == 4: # Wenn Finger dem Daumen entspricht --> aus dem Sketch entspricht, die Nummerierung einem enum vom kleinem Finger (0) zum Daumen (4)
         NEXT_MEASUREMENT = True
