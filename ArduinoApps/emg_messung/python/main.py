@@ -5,7 +5,7 @@ from arduino.app_utils import Leds # let the LED blink so we know something is h
 import csv
 
 # globale Variablen, die im gesamten Skripe gleichbleiben
-NEXT_MEASUREMENT = True # Hiermit wird getrackt, ob eine neue Datei erstellt werden soll
+NEXT_MEASUREMENT = False # Hiermit wird getrackt, ob eine neue Datei erstellt werden soll
 Werte_Liste = list()
 
 def envlope_read(finger: int,sensor: int,envlope: int):
