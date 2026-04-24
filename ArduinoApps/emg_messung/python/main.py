@@ -31,13 +31,14 @@ def messung_speichern(werteVorhanden: bool):
             with open("python/messdaten/last_measurement.txt", "w") as f:
                 f.write(str(measurement_number))
             NEXT_MEASUREMENT = False
-            Bridge.notify("draw_next")
         
-        with open(f'python/messdaten/{filename}', mode='w', encoding='utf-8', newline='') as file:
-            fieldnames = Werte_Liste[0].keys()    
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(Werte_Liste)
+            with open(f'python/messdaten/{filename}', mode='w', encoding='utf-8', newline='') as file:
+                fieldnames = Werte_Liste[0].keys()    
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(Werte_Liste)
+            Werte_Liste.clear()
+            
         Bridge.notify("hochzaehlenFinger")
 
 def get_next_measurement_number():
