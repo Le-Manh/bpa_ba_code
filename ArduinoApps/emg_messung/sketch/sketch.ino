@@ -94,8 +94,6 @@ void button_Interrupt()
   }
 }
 
-
-
 // Calibration:
 // put on the sensors, and release your muscles;
 // wait a few seconds, and select the max value as the throhold;
@@ -117,15 +115,15 @@ int hochzaehlenFinger()
   }
 }
 
-long messung_sensoren(int sensor, int finger)
+uint16_t messung_sensoren(int sensor, int finger)
 {
   
     int Value = analogRead(sensor);
 
     // filter processing
-    long DataAfterFilter = myFilter[finger].update(Value);
+    uint16_t DataAfterFilter = myFilter[finger].update(Value);
 
-    long envlope = sq(DataAfterFilter);
+    uint16_t envlope = sq(DataAfterFilter);
     
     // any value under throhold will be set to zero
     envlope = (envlope > Throhold) ? envlope : 0;
@@ -183,7 +181,7 @@ void loop() {
     /*------------start here-------------------*/
     timeStamp = micros();
     
-    long werte[sensoren_length];
+    uint16_t werte[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
       {
         werte[finger] = messung_sensoren(sensoren[finger],finger);
