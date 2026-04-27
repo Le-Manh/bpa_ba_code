@@ -76,14 +76,25 @@ const byte interruptPin = 2;
 volatile byte ledState = LOW;
 volatile bool messungState = false;
 
+volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
+bool abgeschlossene_Finger = false; // this is used to trigger hochzaehlenFinger
+
 //Interrupt (ISR)
 void button_Interrupt()
 {
   ledState = !ledState;
   messungState = !messungState;
+  if (currentFinger == thumb)
+      {
+        WERTE_VORHANDEN = true;
+      }
+  else
+  {
+    WERTE_VORHANDEN = false;
+  }
 }
 
-bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
+
 
 // Calibration:
 // put on the sensors, and release your muscles;
@@ -133,7 +144,7 @@ void setup() {
     matrix.draw(Hi_Frame);
     for(int i=0; i < sensoren_length; i++)
       {
-        myFilter[i].init(sampleRate, humFreq, true, true, true);    
+        myFilter[i].init(sampleRate, humFreq, true, true, true);
       }
     
     // open serial
@@ -189,21 +200,24 @@ void loop() {
     }
   
     matrix.draw(matrix_feedback[currentFinger]);
-   
-  
+
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
           Bridge.notify("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
-      WERTE_VORHANDEN = true;
-    } else {
-      Bridge.notify("messung_speichern", WERTE_VORHANDEN);
-      WERTE_VORHANDEN = false;
+      abgeschlossene_Finger = true;
+    } else if (abgeschlossene_Finger) {
+      if (WERTE_VORHANDEN)
+      {
+        Bridge.notify("messung_speichern"); 
+      }
+      hochzaehlenFinger();
+      abgeschlossene_Finger = false;
     }
+  
     digitalWrite(ledPin,ledState);
     
-
   
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to

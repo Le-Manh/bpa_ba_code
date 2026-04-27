@@ -10,36 +10,29 @@ Werte_Liste = list()
 
 def envlope_read(finger: int,sensor: int,envlope: int):
     """Packt die Daten aus den Sensoren in ein Dict, damit es als csv abgespeichert werden kann"""
-    global NEXT_MEASUREMENT # Hiermit wird getrackt, ob eine neue Datei erstellt werden soll
     global Werte_Liste # Unsere Werte in einer Liste
     print(envlope)
     Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "Wert": envlope})
-    if finger == 4: # Wenn Finger dem Daumen entspricht --> aus dem Sketch entspricht, die Nummerierung einem enum vom kleinem Finger (0) zum Daumen (4)
-        NEXT_MEASUREMENT = True
 
-def messung_speichern(werteVorhanden: bool):
+def messung_speichern():
     """Speichert die Messung aus Werte_Liste in eine csv und nummeriert die Messung basierend auf der last_measurement.txt
         Da diese Funktion auch immer von der MCU Seite aufgerufen wird, wird die Variable werteVorhanden übergegeben, um sicherzustellen, dass Werte_Liste auch vollständig ist und gerade nicht beschrieben wird
     """
-    global NEXT_MEASUREMENT 
+    print("es wird gespeichert")
     global filename # Das wird gebraucht, damit beim nächsten Aufruf die Funktion noch weiß, wie die Datei hieß
     global Werte_Liste
-    if werteVorhanden:
-        if NEXT_MEASUREMENT:
-            measurement_number = get_next_measurement_number()
-            filename = f"Messung_{measurement_number}.csv"
-            with open("python/messdaten/last_measurement.txt", "w") as f:
-                f.write(str(measurement_number))
-            NEXT_MEASUREMENT = False
-        
-            with open(f'python/messdaten/{filename}', mode='w', encoding='utf-8', newline='') as file:
-                fieldnames = Werte_Liste[0].keys()    
-                writer = csv.DictWriter(file, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(Werte_Liste)
-            Werte_Liste.clear()
+    measurement_number = get_next_measurement_number()
+    filename = f"Messung_{measurement_number}.csv"
+    with open("python/messdaten/last_measurement.txt", "w") as f:
+        f.write(str(measurement_number))
+    
+    with open(f'python/messdaten/{filename}', mode='w', encoding='utf-8', newline='') as file:
+        fieldnames = Werte_Liste[0].keys()    
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(Werte_Liste)
+    Werte_Liste.clear()
             
-        Bridge.notify("hochzaehlenFinger")
 
 def get_next_measurement_number():
     """Liest die letzte Messnummer aus der Datei und erhöht sie um 1"""
