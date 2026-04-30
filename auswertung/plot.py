@@ -11,10 +11,10 @@ fingerTypes = ["kleiner Finger","Ringfinger","Mittelfinger","Zeigefinger","Daume
 
 def drawFingerTypeLabel(ax,df):
     for i in range(0,5): # For-Schleife über die Finger-Indizes 0...4
-        a = df["Aktueller Finger"].values.searchsorted(i, side='left') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" erstmals auftritt, a = Startposition des Fingers i
-        b = df["Aktueller Finger"].values.searchsorted(i, side='right') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" hinter dem letzten i-Fingerindex-Wert, b = Endposition des Fingers i
+        a = df["Aktueller Finger"].to_numpy().searchsorted(i, side='left') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" erstmals auftritt, a = Startposition des Fingers i
+        b = df["Aktueller Finger"].to_numpy().searchsorted(i, side='right') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" hinter dem letzten i-Fingerindex-Wert, b = Endposition des Fingers i
         ax.axvline(x = a, alpha = 0.5, color = "black", linestyle = "--") # zeichnet eine gestrichelte Linie an der Stelle a
-        ax.text((b+a)/2, np.min(df["Wert"]), fingerTypes[i],horizontalalignment='center') # Schreibt den Finger-Namen an der x-Stelle (a+b)/2, also auf der Hälfte, und y-Stelle am unteren Rand des Diagramms und zentriert den Begriff an der Stelle
+        ax.text((b+a)/2, np.min(df["Wert"]), fingerTypes[i],horizontalalignment='center',verticalalignment='top') # Schreibt den Finger-Namen an der x-Stelle (a+b)/2, also auf der Hälfte, und y-Stelle am unteren Rand des Diagramms und zentriert den Begriff an der Stelle
         if(b == len(df["Aktueller Finger"])): # Prüfen, ob b gleich der Länge aller Daten des DataFrames ist
             ax.axvline(x = b, alpha = 0.5, color = "black", linestyle = "--") # Wenn ja, letzte Schwarze Linies
 
@@ -31,7 +31,7 @@ def draw_plot(df_data: pd.DataFrame, sensor: int, name: str="") -> tuple:
     return fig,ax
 
 for i in range(4):
-    splitted_data.append(csv_data[csv_data['sensor'] == i][['Aktueller Finger','Wert']]) #split Messung per sensor
+    splitted_data.append(csv_data[csv_data['sensor'] == i][['Aktueller Finger','Wert']].reset_index()) #split Messung per sensor und reset den Index
 
     fig,ax = draw_plot(splitted_data[i], sensor=i, name=f"{i}")
     drawFingerTypeLabel(ax, splitted_data[i])
