@@ -183,7 +183,7 @@ void loop() {
     // In order to make sure the ADC sample frequence on arduino,
     // the time cost should be measured each loop
     /*------------start here-------------------*/
-    loopStartTime = micros();
+    unsigned long loopStartTime = micros();
     
     float werte[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
