@@ -86,12 +86,6 @@ void button_Interrupt()
 
 bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 
-// Calibration:
-// put on the sensors, and release your muscles;
-// wait a few seconds, and select the max value as the throhold;
-// any value under throhold will be set to zero
-static int Throhold = 0;
-
 unsigned long timeStamp;
 unsigned long timeBudget;
 
