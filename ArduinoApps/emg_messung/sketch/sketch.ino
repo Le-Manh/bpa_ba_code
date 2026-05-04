@@ -37,8 +37,6 @@
 
 #include "EMGFilters.h"
 
-#define TIMING_DEBUG 0
-
 #define SensorInputPin A0 // input pin number
 #define SensorInputPin1 A1 // input pin number
 #define SensorInputPin2 A2 // input pin number
@@ -86,7 +84,6 @@ void button_Interrupt()
 
 bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 
-unsigned long timeStamp;
 unsigned long timeBudget;
 
 int hochzaehlenFinger()
