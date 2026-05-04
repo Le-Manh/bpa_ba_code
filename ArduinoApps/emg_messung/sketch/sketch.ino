@@ -37,7 +37,7 @@
 
 #include "EMGFilters.h"
 
-#define TIMING_DEBUG 1
+#define TIMING_DEBUG 0
 
 #define SensorInputPin A0 // input pin number
 #define SensorInputPin1 A1 // input pin number
@@ -53,7 +53,7 @@
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
 // For countries where power transmission is at 50 Hz
 // For countries where power transmission is at 60 Hz, need to change to
 // "NOTCH_FREQ_60HZ"
@@ -70,6 +70,7 @@ int sensoren[] = {SensorInputPin,SensorInputPin1,SensorInputPin2,SensorInputPin3
 int sensoren_length = std::size(sensoren); //das geht seit C++17
 
 EMGFilters myFilter[std::size(sensoren)];
+float sensorOffsets[std::size(sensoren)] = {0.0};
 // Feedback-LED und Interrupt Variablen
 const byte ledPin = 12;
 const byte interruptPin = 2;
@@ -106,20 +107,36 @@ int hochzaehlenFinger()
   }
 }
 
-long messung_sensoren(int sensor, int finger)
+float messung_sensoren(int sensor, int finger)
 {
   
-    int Value = analogRead(sensor);
+    int rawValue = analogRead(sensor);
 
     // filter processing
-    long DataAfterFilter = myFilter[finger].update(Value);
+    int filteredValue = myFilter[finger].update(rawValue);
 
-    long envlope = sq(DataAfterFilter);
-    
-    // any value under throhold will be set to zero
-    envlope = (envlope > Throhold) ? envlope : 0;
-    
-  return envlope;
+    float correctedValue = filteredValue - sensorOffsets[finger];
+  
+  return correctedValue;
+}
+
+void calibrateSensors(){
+  const int calibrationSamples = 1000;
+  long sums[sensoren_length] = {0};
+
+  for(int i = 0; i < calibrationSamples; i++){
+    for(int j=0; j < sensoren_length;j++){
+      int rawValue = analogRead(sensoren[j]);
+      int filteredValue = myFilter[j].update(rawValue);
+      sums[j] += filteredValue;
+    }
+    delay(2); // Entspricht ca. 500 Hz Abtastrate (1000ms / 500 = 2ms)
+  }
+
+  // Berechne den durchschnittlichen Offset für jeden Sensor
+  for (int i = 0; i < sensoren_length; i++) {
+    sensorOffsets[i] = (float)sums[i] / calibrationSamples;
+  }
 }
 
 Arduino_LED_Matrix matrix;
@@ -131,6 +148,13 @@ void setup() {
     matrix.begin();
     matrix.setGrayscaleBits(1);
     matrix.draw(Hi_Frame);
+
+    // SensorPins konfigurieren, alle als Input
+    for(int i=0; i < sensoren_length; i++)
+      {
+        pinMode(sensoren[i],INPUT);
+      }
+  
     for(int i=0; i < sensoren_length; i++)
       {
         myFilter[i].init(sampleRate, humFreq, true, true, true);    
@@ -150,12 +174,6 @@ void setup() {
 
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
-
-    // SensorPins konfigurieren, alle als Input
-    for(int i=0; i < sensoren_length; i++)
-      {
-        pinMode(sensoren[i],INPUT);
-      }
   
     // Mapping der Finger, start Punkt
     currentFinger = littleFinger;
@@ -172,7 +190,7 @@ void loop() {
     /*------------start here-------------------*/
     timeStamp = micros();
     
-    long werte[sensoren_length];
+    float werte[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
       {
         werte[finger] = messung_sensoren(sensoren[finger],finger);
@@ -208,7 +226,7 @@ void loop() {
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to
     // do your work
-    delayMicroseconds(500);
+    delay(2);
     // if more than timeBudget, the sample rate need to reduce to
     // SAMPLE_FREQ_500HZ
 }
