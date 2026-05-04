@@ -226,7 +226,7 @@ void loop() {
     /*------------end here---------------------*/
     // if less than timeBudget, then you still have (timeBudget - timeStamp) to
     // do your work
-    delay(2);
+    delayMicroseconds(500);
     // if more than timeBudget, the sample rate need to reduce to
     // SAMPLE_FREQ_500HZ
 }
