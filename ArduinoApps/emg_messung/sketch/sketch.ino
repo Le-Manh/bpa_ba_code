@@ -153,6 +153,7 @@ void setup() {
       {
         myFilter[i].init(sampleRate, humFreq, true, true, true);    
       }
+    calibrateSensors();
     
     // open serial
     Monitor.begin(9600);
@@ -182,23 +183,13 @@ void loop() {
     // In order to make sure the ADC sample frequence on arduino,
     // the time cost should be measured each loop
     /*------------start here-------------------*/
-    timeStamp = micros();
+    loopStartTime = micros();
     
     float werte[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
       {
         werte[finger] = messung_sensoren(sensoren[finger],finger);
       }
-    
-    timeStamp = micros() - timeStamp;
-    if (TIMING_DEBUG) {
-        // Serial.print("Read Data: "); Serial.println(Value);
-        //Monitor.print("Filtered Data: ");Monitor.println(DataAfterFilter);
-        Monitor.print("Squared Data: ");
-        Monitor.println(werte[0]);
-        //Monitor.print("Filters cost time: "); Monitor.println(timeStamp);
-        // the filter cost average around 520 us  
-    }
   
     matrix.draw(matrix_feedback[currentFinger]);
    
@@ -215,12 +206,17 @@ void loop() {
     }
     digitalWrite(ledPin,ledState);
     
-
-  
+    
     /*------------end here---------------------*/
-    // if less than timeBudget, then you still have (timeBudget - timeStamp) to
-    // do your work
-    delayMicroseconds(500);
-    // if more than timeBudget, the sample rate need to reduce to
-    // SAMPLE_FREQ_500HZ
+    // Berechne die vergangene Zeit
+    unsigned long elapsedTime = micros() - loopStartTime;
+
+    // timeBudget ist 2000 µs für 500 Hz
+    if (elapsedTime < timeBudget) {
+        // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
+        delayMicroseconds(timeBudget - elapsedTime);
+    }
+    // Wenn die Ausführung bereits länger als timeBudget gedauert hat,
+    // starten wir sofort den nächsten Loop. Die Abtastrate sinkt dann leicht,
+    // aber das ist das physikalisch Bestmögliche.
 }
