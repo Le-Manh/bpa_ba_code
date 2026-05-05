@@ -112,7 +112,7 @@ float messung_sensoren(int sensor, int finger)
 }
 
 void calibrateSensors(){
-  const int calibrationSamples = 1000;
+  const int calibrationSamples = 3000;
   long sums[sensoren_length] = {0};
 
   for(int i = 0; i < calibrationSamples; i++){
