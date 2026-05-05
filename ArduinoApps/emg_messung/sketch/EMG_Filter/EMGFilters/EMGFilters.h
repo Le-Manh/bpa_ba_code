@@ -95,7 +95,7 @@ class EMGFilters {
 
     // \brief Called in the loop, input read analog value to get filtered
     // value
-    int update(int inputValue);
+    float update(int inputValue);
 
   private:
     SAMPLE_FREQUENCY m_sampleFreq;

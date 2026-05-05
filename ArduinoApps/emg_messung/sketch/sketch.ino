@@ -104,7 +104,7 @@ float messung_sensoren(int sensor, int finger)
     int rawValue = analogRead(sensor);
 
     // filter processing
-    int filteredValue = myFilter[finger].update(rawValue);
+    float filteredValue = myFilter[finger].update(rawValue);
 
     float correctedValue = filteredValue - sensorOffsets[finger];
   
@@ -181,7 +181,7 @@ void loop() {
     // the time cost should be measured each loop
     /*------------start here-------------------*/
     unsigned long loopStartTime = micros();
-    
+
     float werte[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
       {

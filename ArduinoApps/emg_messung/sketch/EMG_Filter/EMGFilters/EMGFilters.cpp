@@ -179,10 +179,10 @@ void EMGFilters::init(SAMPLE_FREQUENCY sampleFreq,
     m_highpassFilterEnabled = enableHighpassFilter;
 }
 
-int EMGFilters::update(int inputValue) {
-    int output = 0;
+float EMGFilters::update(int inputValue) {
+    float output = 0;
     if (m_bypassEnabled) {
-        return output = inputValue;
+        return (float)inputValue;
     }
 
     // first notch filter
