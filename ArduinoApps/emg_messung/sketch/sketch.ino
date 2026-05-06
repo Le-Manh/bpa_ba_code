@@ -48,6 +48,8 @@
 #include <Arduino_LED_Matrix.h>
 #include "LED_Matrix.h"
 
+#include <math.h>
+
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
@@ -112,13 +114,23 @@ float messung_sensoren(int sensor, int finger)
 }
 
 void calibrateSensors(){
-  const int calibrationSamples = 3000;
+  const int warmupSamples = 500;
+  const int calibrationSamples = 1000;
   long sums[sensoren_length] = {0};
+  long validSamples[sensoren_length] = {0}; // Zähler für gültige Messungen pro Sensor
 
+  // 1. Warm-up Phase: Filter stabilisieren lassen
+  for (int i = 0; i < warmupSamples; i++) {
+    for (int j = 0; j < sensoren_length; j++) {
+        myFilter[j].update(analogRead(sensoren[j]));
+    }
+    delay(2); // Entspricht ca. 500 Hz
+  }
+  
   for(int i = 0; i < calibrationSamples; i++){
     for(int j=0; j < sensoren_length;j++){
       int rawValue = analogRead(sensoren[j]);
-      int filteredValue = myFilter[j].update(rawValue);
+      float filteredValue = myFilter[j].update(rawValue);
       sums[j] += filteredValue;
     }
     delay(2); // Entspricht ca. 500 Hz Abtastrate (1000ms / 500 = 2ms)
@@ -183,18 +195,24 @@ void loop() {
     unsigned long loopStartTime = micros();
 
     float werte[sensoren_length];
+    float werte_raw[sensoren_length];
+    float werte_after_filter[sensoren_length];
+  
     for(int finger = 0; finger < sensoren_length; finger++)
       {
-        werte[finger] = messung_sensoren(sensoren[finger],finger);
+        //werte[finger] = messung_sensoren(sensoren[finger],finger);
+        werte_raw[finger] = analogRead(sensoren[finger]);
+        werte_after_filter[finger] = myFilter[finger].update(werte_raw[finger]);
+        werte[finger] = werte_after_filter[finger] - sensorOffsets[finger];
       }
-  
+    
     matrix.draw(matrix_feedback[currentFinger]);
    
   
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.notify("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
+          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_after_filter[i],werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
       WERTE_VORHANDEN = true;
     } else {
