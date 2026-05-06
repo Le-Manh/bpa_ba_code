@@ -70,7 +70,7 @@ int sensoren[] = {SensorInputPin,SensorInputPin1,SensorInputPin2,SensorInputPin3
 int sensoren_length = std::size(sensoren); //das geht seit C++17
 
 EMGFilters myFilter[std::size(sensoren)];
-float sensorOffsets[std::size(sensoren)] = {0.0};
+float sensorOffsets[std::size(sensoren)];
 // Feedback-LED und Interrupt Variablen
 const byte ledPin = 12;
 const byte interruptPin = 2;
