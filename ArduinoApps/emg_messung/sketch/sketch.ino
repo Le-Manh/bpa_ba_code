@@ -212,7 +212,7 @@ void loop() {
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_after_filter[i],werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
+          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_after_filter[i],werte[i], sensorOffsets[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
       WERTE_VORHANDEN = true;
     } else {
