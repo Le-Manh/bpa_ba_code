@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
-name_data = "Test.csv"
+name_data = "Test_3.csv"
 
 csv_data = pd.read_csv(path_messdaten+name_data)
 splitted_data = list()
