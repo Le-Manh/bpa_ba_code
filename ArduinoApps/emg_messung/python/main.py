@@ -13,7 +13,7 @@ def envlope_read(finger: int,sensor: int,werte_raw: float, werte_after_filter: f
     global NEXT_MEASUREMENT # Hiermit wird getrackt, ob eine neue Datei erstellt werden soll
     global Werte_Liste # Unsere Werte in einer Liste
     #print(envlope)
-    Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "Wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "werte": werte})
+    Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "Wert": werte})
     if finger == 4: # Wenn Finger dem Daumen entspricht --> aus dem Sketch entspricht, die Nummerierung einem enum vom kleinem Finger (0) zum Daumen (4)
         NEXT_MEASUREMENT = True
 
