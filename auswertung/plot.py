@@ -11,7 +11,7 @@ fingerTypes = ["kleiner Finger","Ringfinger","Mittelfinger","Zeigefinger","Daume
 value_types = ["wert_raw", "werte_gefiltert", "Wert", "Offset"]
 
 def drawFingerTypeLabel(ax,df,n):
-    for i in range(0,): # For-Schleife über die Finger-Indizes 0...4
+    for i in range(0,4): # For-Schleife über die Finger-Indizes 0...4
         a = df["Aktueller Finger"].to_numpy().searchsorted(i, side='left') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" erstmals auftritt, a = Startposition des Fingers i
         b = df["Aktueller Finger"].to_numpy().searchsorted(i, side='right') # sucht die Position an der i (Fingerindex) in der Spalte "Aktueller Finger" hinter dem letzten i-Fingerindex-Wert, b = Endposition des Fingers i
         ax.axvline(x = a, alpha = 0.5, color = "black", linestyle = "--") # zeichnet eine gestrichelte Linie an der Stelle a
