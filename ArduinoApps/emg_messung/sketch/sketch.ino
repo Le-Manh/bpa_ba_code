@@ -42,18 +42,18 @@
 #define SensorInputPin2 A2 // input pin number
 #define SensorInputPin3 A3 // input pin number
 
+#define debug 1
+
 #include "Arduino_RouterBridge.h"
 
 //Visuell feedback for finger
 #include <Arduino_LED_Matrix.h>
 #include "LED_Matrix.h"
 
-#include <math.h>
-
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
 // For countries where power transmission is at 50 Hz
 // For countries where power transmission is at 60 Hz, need to change to
 // "NOTCH_FREQ_60HZ"
@@ -114,28 +114,22 @@ float messung_sensoren(int sensor, int finger)
 }
 
 void calibrateSensors(){
-  const int warmupSamples = 500;
-  const int calibrationSamples = 1000;
+  const int calibrationSamples = 3000;
   long sums[sensoren_length] = {0};
-  long validSamples[sensoren_length] = {0}; // Zähler für gültige Messungen pro Sensor
 
-  // 1. Warm-up Phase: Filter stabilisieren lassen
-  for (int i = 0; i < warmupSamples; i++) {
-    for (int j = 0; j < sensoren_length; j++) {
-        myFilter[j].update(analogRead(sensoren[j]));
-    }
-    delay(2); // Entspricht ca. 500 Hz
-  }
-  
   for(int i = 0; i < calibrationSamples; i++){
+    unsigned long calibLoopStart = micros();
     for(int j=0; j < sensoren_length;j++){
       int rawValue = analogRead(sensoren[j]);
-      float filteredValue = myFilter[j].update(rawValue);
+      int filteredValue = myFilter[j].update(rawValue);
       sums[j] += filteredValue;
     }
-    delay(2); // Entspricht ca. 500 Hz Abtastrate (1000ms / 500 = 2ms)
+    unsigned long calibElapsedTime = micros() - calibLoopStart;
+    if(calibElapsedTime < sampleRate) { // Ziel: sampleRate pro Sample
+        delayMicroseconds(sampleRate - calibElapsedTime);
+    }
   }
-
+    
   // Berechne den durchschnittlichen Offset für jeden Sensor
   for (int i = 0; i < sensoren_length; i++) {
     sensorOffsets[i] = (float)sums[i] / calibrationSamples;
@@ -151,6 +145,11 @@ void setup() {
     matrix.begin();
     matrix.setGrayscaleBits(1);
     matrix.draw(Hi_Frame);
+
+    // setup for time cost measure
+    // using micros()
+    timeBudget = 1e6 / sampleRate;
+    // micros will overflow and auto return to zero every 70 minutes
 
     // SensorPins konfigurieren, alle als Input
     for(int i=0; i < sensoren_length; i++)
@@ -170,11 +169,6 @@ void setup() {
     //start Brigde
     Bridge.begin();
     Bridge.provide("hochzaehlenFinger",hochzaehlenFinger); //provide counting of finger for MCU
-    
-    // setup for time cost measure
-    // using micros()
-    timeBudget = 1e6 / sampleRate;
-    // micros will overflow and auto return to zero every 70 minutes
 
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
@@ -195,24 +189,18 @@ void loop() {
     unsigned long loopStartTime = micros();
 
     float werte[sensoren_length];
-    float werte_raw[sensoren_length];
-    float werte_after_filter[sensoren_length];
-  
     for(int finger = 0; finger < sensoren_length; finger++)
       {
-        //werte[finger] = messung_sensoren(sensoren[finger],finger);
-        werte_raw[finger] = analogRead(sensoren[finger]);
-        werte_after_filter[finger] = myFilter[finger].update(werte_raw[finger]);
-        werte[finger] = werte_after_filter[finger] - sensorOffsets[finger];
+        werte[finger] = messung_sensoren(sensoren[finger],finger);
       }
-    
+  
     matrix.draw(matrix_feedback[currentFinger]);
    
   
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_after_filter[i],werte[i], sensorOffsets[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
+          Bridge.notify("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
       WERTE_VORHANDEN = true;
     } else {
@@ -226,6 +214,18 @@ void loop() {
     // Berechne die vergangene Zeit
     unsigned long elapsedTime = micros() - loopStartTime;
 
+    // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
+    if(debug)
+    {
+      // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
+      static int loop_counter = 0;
+      if(loop_counter++ > 100){
+        Monitor.print("Ausführungszeit (µs): ");
+        Monitor.println(elapsedTime);
+        loop_counter = 0;
+      }
+    }
+  
     // timeBudget ist 2000 µs für 500 Hz
     if (elapsedTime < timeBudget) {
         // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
