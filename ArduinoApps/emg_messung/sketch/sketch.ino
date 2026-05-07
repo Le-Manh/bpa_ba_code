@@ -77,15 +77,26 @@ const byte interruptPin = 2;
 volatile byte ledState = LOW;
 volatile bool messungState = false;
 
+volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
+bool abgeschlossene_Finger = false; // this is used to trigger hochzaehlenFinger
+
 //Interrupt (ISR)
 void button_Interrupt()
 {
   ledState = !ledState;
   messungState = !messungState;
+  if (currentFinger == thumb)
+      {
+        WERTE_VORHANDEN = true;
+      }
+  else
+  {
+    WERTE_VORHANDEN = false;
+  }
 }
 
-bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 
+bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 unsigned long timeBudget;
 
 int hochzaehlenFinger()
@@ -159,7 +170,7 @@ void setup() {
   
     for(int i=0; i < sensoren_length; i++)
       {
-        myFilter[i].init(sampleRate, humFreq, true, true, true);    
+        myFilter[i].init(sampleRate, humFreq, true, true, true);
       }
     calibrateSensors();
     
@@ -186,58 +197,36 @@ void loop() {
     // In order to make sure the ADC sample frequence on arduino,
     // the time cost should be measured each loop
     /*------------start here-------------------*/
+
     unsigned long loopStartTime = micros();
 
     float werte[sensoren_length];
     float werte_raw[sensoren_length];
     float werte_gefiltert[sensoren_length];
+
     for(int finger = 0; finger < sensoren_length; finger++)
       {
         //werte[finger] = messung_sensoren(sensoren[finger],finger);
         werte_raw[finger] = analogRead(sensoren[finger]);
         werte_gefiltert[finger] = myFilter[finger].update(werte_raw[finger]);
         werte[finger] = werte_gefiltert[finger] - sensorOffsets[finger];
-        
       }
   
     matrix.draw(matrix_feedback[currentFinger]);
-   
-  
+
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
           Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_gefiltert[i],werte[i],sensorOffsets[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
-      WERTE_VORHANDEN = true;
-    } else {
-      Bridge.notify("messung_speichern", WERTE_VORHANDEN);
-      WERTE_VORHANDEN = false;
-    }
-    digitalWrite(ledPin,ledState);
-    
-    
-    /*------------end here---------------------*/
-    // Berechne die vergangene Zeit
-    unsigned long elapsedTime = micros() - loopStartTime;
-
-    // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
-    if(debug)
-    {
-      // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
-      static int loop_counter = 0;
-      if(loop_counter++ > 100){
-        Monitor.print("Ausführungszeit (µs): ");
-        Monitor.println(elapsedTime);
-        loop_counter = 0;
+      abgeschlossene_Finger = true;
+    } else if (abgeschlossene_Finger) {
+      if (WERTE_VORHANDEN)
+      {
+        Bridge.notify("messung_speichern"); 
       }
+      hochzaehlenFinger();
+      abgeschlossene_Finger = false;
     }
   
-    // timeBudget ist 2000 µs für 500 Hz
-    if (elapsedTime < timeBudget) {
-        // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
-        delayMicroseconds(timeBudget - elapsedTime);
-    }
-    // Wenn die Ausführung bereits länger als timeBudget gedauert hat,
-    // starten wir sofort den nächsten Loop. Die Abtastrate sinkt dann leicht,
-    // aber das ist das physikalisch Bestmögliche.
-}
+    digitalWrite(ledPin,ledState);
