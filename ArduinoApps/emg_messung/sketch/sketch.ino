@@ -53,7 +53,7 @@
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
 // For countries where power transmission is at 50 Hz
 // For countries where power transmission is at 60 Hz, need to change to
 // "NOTCH_FREQ_60HZ"
