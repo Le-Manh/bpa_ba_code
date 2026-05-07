@@ -3,15 +3,17 @@ from arduino.app_utils import App
 from arduino.app_utils import Bridge
 from arduino.app_utils import Leds # let the LED blink so we know something is happening
 import csv
+import string
 
 # globale Variablen, die im gesamten Skripe gleichbleiben
 Werte_Liste = list()
 
-def envlope_read(finger: int,sensor: int,werte_raw: float, werte_after_filter: float, werte: float,sensorOffsets: float):
+def envlope_read(payload: string):
     """Packt die Daten aus den Sensoren in ein Dict, damit es als csv abgespeichert werden kann"""
     global Werte_Liste # Unsere Werte in einer Liste
-    #print(envlope)
-    Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "Wert": werte, "Offset": sensorOffsets})
+    sensor_werte_str = payload.split(';')
+    print(sensor_werte_str)
+    #Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "Wert": werte, "Offset": sensorOffsets})
 
 def messung_speichern():
     """Speichert die Messung aus Werte_Liste in eine csv und nummeriert die Messung basierend auf der last_measurement.txt

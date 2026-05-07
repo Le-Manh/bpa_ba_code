@@ -53,7 +53,7 @@
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
 // For countries where power transmission is at 50 Hz
 // For countries where power transmission is at 60 Hz, need to change to
 // "NOTCH_FREQ_60HZ"
@@ -77,14 +77,16 @@ const byte interruptPin = 2;
 volatile byte ledState = LOW;
 volatile bool messungState = false;
 
-volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
+//volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 bool abgeschlossene_Finger = false; // this is used to trigger hochzaehlenFinger
+String payload; // used to pack the sensor data for the MPU
 
 //Interrupt (ISR)
 void button_Interrupt()
 {
   ledState = !ledState;
   messungState = !messungState;
+  /*
   if (currentFinger == thumb)
       {
         WERTE_VORHANDEN = true;
@@ -93,10 +95,9 @@ void button_Interrupt()
   {
     WERTE_VORHANDEN = false;
   }
+  */
 }
 
-
-bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 unsigned long timeBudget;
 
 int hochzaehlenFinger()
@@ -215,18 +216,51 @@ void loop() {
     matrix.draw(matrix_feedback[currentFinger]);
 
     if (messungState) {
+      payload = "";
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_gefiltert[i],werte[i],sensorOffsets[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
+          payload += String(currentFinger) + ",";
+          payload += String(i) + ",";
+          //payload += String(werte_raw[i]) + ",";
+          //payload += String(werte_gefiltert[i]) + ",";
+          payload += String(werte[i]) + ",";
+          //payload += String(sensorOffsets[i]);
+          if(i < sensoren_length - 1){
+            payload += ";";
+          }
         }
       abgeschlossene_Finger = true;
     } else if (abgeschlossene_Finger) {
-      if (WERTE_VORHANDEN)
-      {
-        Bridge.notify("messung_speichern"); 
-      }
+      Bridge.notify("envlope_read",payload);
+        //Bridge.notify("messung_speichern");
       hochzaehlenFinger();
       abgeschlossene_Finger = false;
     }
   
     digitalWrite(ledPin,ledState);
+  
+/*------------end here---------------------*/
+    // Berechne die vergangene Zeit
+    unsigned long elapsedTime = micros() - loopStartTime;
+
+    // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
+    if(debug)
+    {
+      // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
+      static int loop_counter = 0;
+      if(loop_counter++ > 100){
+        Monitor.print("Ausführungszeit (µs): ");
+        Monitor.println(elapsedTime);
+        loop_counter = 0;
+      }
+    }
+  
+    // timeBudget ist 2000 µs für 500 Hz
+    if (elapsedTime < timeBudget) {
+        // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
+        delayMicroseconds(timeBudget - elapsedTime);
+    }
+    // Wenn die Ausführung bereits länger als timeBudget gedauert hat,
+    // starten wir sofort den nächsten Loop. Die Abtastrate sinkt dann leicht,
+    // aber das ist das physikalisch Bestmögliche.
+}
