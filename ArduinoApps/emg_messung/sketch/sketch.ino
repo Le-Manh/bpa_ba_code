@@ -189,9 +189,15 @@ void loop() {
     unsigned long loopStartTime = micros();
 
     float werte[sensoren_length];
+    float werte_raw[sensoren_length];
+    float werte_gefiltert[sensoren_length];
     for(int finger = 0; finger < sensoren_length; finger++)
       {
-        werte[finger] = messung_sensoren(sensoren[finger],finger);
+        //werte[finger] = messung_sensoren(sensoren[finger],finger);
+        werte_raw[finger] = analogRead(sensoren[finger]);
+        werte_gefiltert[finger] = myFilter[finger].update(werte_raw[finger]);
+        werte[finger] = werte_gefiltert[finger] - sensorOffsets[finger];
+        
       }
   
     matrix.draw(matrix_feedback[currentFinger]);
@@ -200,7 +206,7 @@ void loop() {
     if (messungState) {
       for(int i = 0; i < sensoren_length; i++)
         {
-          Bridge.notify("envlope_read",currentFinger,i,werte[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
+          Bridge.notify("envlope_read",currentFinger,i,werte_raw[i],werte_gefiltert[i],werte[i],sensorOffsets[i]); // Daten an das Python Skript, dabei stellt das i, die Nummerierung der Sensoren da. Angefangen mit 0
         }
       WERTE_VORHANDEN = true;
     } else {
