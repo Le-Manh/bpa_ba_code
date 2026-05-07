@@ -51,7 +51,7 @@
 // discrete filters must works with fixed sample frequence
 // our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
 // other sampleRate inputs will bypass all the EMG_FILTER
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
 // For countries where power transmission is at 50 Hz
 // For countries where power transmission is at 60 Hz, need to change to
 // "NOTCH_FREQ_60HZ"
@@ -116,14 +116,18 @@ void calibrateSensors(){
   long sums[sensoren_length] = {0};
 
   for(int i = 0; i < calibrationSamples; i++){
+    unsigned long calibLoopStart = micros();
     for(int j=0; j < sensoren_length;j++){
       int rawValue = analogRead(sensoren[j]);
       int filteredValue = myFilter[j].update(rawValue);
       sums[j] += filteredValue;
     }
-    delay(2); // Entspricht ca. 500 Hz Abtastrate (1000ms / 500 = 2ms)
+    unsigned long calibElapsedTime = micros() - calibLoopStart;
+    if(calibElapsedTime < sampleRate) { // Ziel: sampleRate pro Sample
+        delayMicroseconds(sampleRate - calibElapsedTime);
+    }
   }
-
+    
   // Berechne den durchschnittlichen Offset für jeden Sensor
   for (int i = 0; i < sensoren_length; i++) {
     sensorOffsets[i] = (float)sums[i] / calibrationSamples;
@@ -139,6 +143,11 @@ void setup() {
     matrix.begin();
     matrix.setGrayscaleBits(1);
     matrix.draw(Hi_Frame);
+
+    // setup for time cost measure
+    // using micros()
+    timeBudget = 1e6 / sampleRate;
+    // micros will overflow and auto return to zero every 70 minutes
 
     // SensorPins konfigurieren, alle als Input
     for(int i=0; i < sensoren_length; i++)
@@ -158,11 +167,6 @@ void setup() {
     //start Brigde
     Bridge.begin();
     Bridge.provide("hochzaehlenFinger",hochzaehlenFinger); //provide counting of finger for MCU
-    
-    // setup for time cost measure
-    // using micros()
-    timeBudget = 1e6 / sampleRate;
-    // micros will overflow and auto return to zero every 70 minutes
 
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
@@ -207,7 +211,7 @@ void loop() {
     /*------------end here---------------------*/
     // Berechne die vergangene Zeit
     unsigned long elapsedTime = micros() - loopStartTime;
-
+  
     // timeBudget ist 2000 µs für 500 Hz
     if (elapsedTime < timeBudget) {
         // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
