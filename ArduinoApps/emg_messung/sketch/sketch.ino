@@ -79,7 +79,7 @@ volatile bool messungState = false;
 
 //volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
 bool abgeschlossene_Finger = false; // this is used to trigger hochzaehlenFinger
-String payload; // used to pack the sensor data for the MPU
+String payload = ""; // used to pack the sensor data for the MPU
 
 //Interrupt (ISR)
 void button_Interrupt()
@@ -213,17 +213,16 @@ void loop() {
         werte[finger] = werte_gefiltert[finger] - sensorOffsets[finger];
       }
   
-    matrix.draw(matrix_feedback[currentFinger]);
+    //matrix.draw(matrix_feedback[currentFinger]);
 
     if (messungState) {
-      payload = "";
       for(int i = 0; i < sensoren_length; i++)
         {
-          payload += String(currentFinger) + ",";
-          payload += String(i) + ",";
+          payload += String(currentFinger) + "," 
+                  + String(i) + ","
           //payload += String(werte_raw[i]) + ",";
           //payload += String(werte_gefiltert[i]) + ",";
-          payload += String(werte[i]) + ",";
+          + String(werte[i]);
           //payload += String(sensorOffsets[i]);
           if(i < sensoren_length - 1){
             payload += ";";
@@ -232,6 +231,7 @@ void loop() {
       abgeschlossene_Finger = true;
     } else if (abgeschlossene_Finger) {
       Bridge.notify("envlope_read",payload);
+      payload = "";
         //Bridge.notify("messung_speichern");
       hochzaehlenFinger();
       abgeschlossene_Finger = false;
@@ -248,6 +248,7 @@ void loop() {
     {
       // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
       static int loop_counter = 0;
+      
       if(loop_counter++ > 100){
         Monitor.print("Ausführungszeit (µs): ");
         Monitor.println(elapsedTime);

@@ -13,6 +13,7 @@ def envlope_read(payload: string):
     global Werte_Liste # Unsere Werte in einer Liste
     sensor_werte_str = payload.split(';')
     print(sensor_werte_str)
+    print(type(sensor_werte_str))
     #Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "Wert": werte, "Offset": sensorOffsets})
 
 def messung_speichern():
