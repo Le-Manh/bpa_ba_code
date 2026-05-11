@@ -180,6 +180,7 @@ void setup() {
 
     //start Brigde
     Bridge.begin();
+    Bridge.provide("messung_sensoren",messung_sensoren);
     Bridge.provide("hochzaehlenFinger",hochzaehlenFinger); //provide counting of finger for MCU
 
     //Feedback-LED Setup
@@ -201,41 +202,8 @@ void loop() {
 
     unsigned long loopStartTime = micros();
 
-    float werte[sensoren_length];
-    float werte_raw[sensoren_length];
-    float werte_gefiltert[sensoren_length];
-
-    for(int finger = 0; finger < sensoren_length; finger++)
-      {
-        //werte[finger] = messung_sensoren(sensoren[finger],finger);
-        werte_raw[finger] = analogRead(sensoren[finger]);
-        werte_gefiltert[finger] = myFilter[finger].update(werte_raw[finger]);
-        werte[finger] = werte_gefiltert[finger] - sensorOffsets[finger];
-      }
-  
-    //matrix.draw(matrix_feedback[currentFinger]);
-
-    if (messungState) {
-      for(int i = 0; i < sensoren_length; i++)
-        {
-          payload += String(currentFinger) + "," 
-                  + String(i) + ","
-          //payload += String(werte_raw[i]) + ",";
-          //payload += String(werte_gefiltert[i]) + ",";
-          + String(werte[i]);
-          //payload += String(sensorOffsets[i]);
-          if(i < sensoren_length - 1){
-            payload += ";";
-          }
-        }
-      abgeschlossene_Finger = true;
-    } else if (abgeschlossene_Finger) {
-      Bridge.notify("envlope_read",payload);
-      payload = "";
-        //Bridge.notify("messung_speichern");
-      hochzaehlenFinger();
-      abgeschlossene_Finger = false;
-    }
+    Bridge.notify("messungState",messungState);
+    matrix.draw(matrix_feedback[currentFinger]);
   
     digitalWrite(ledPin,ledState);
   

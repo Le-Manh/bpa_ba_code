@@ -1,20 +1,17 @@
 import time
-from arduino.app_utils import App
-from arduino.app_utils import Bridge
-from arduino.app_utils import Leds # let the LED blink so we know something is happening
+from arduino.app_utils import App, Bridge, Leds
 import csv
 import string
 
 # globale Variablen, die im gesamten Skripe gleichbleiben
 Werte_Liste = list()
+sensoren_index = range(5)
+fingerState = range(6)
+messungState = False
 
-def envlope_read(payload: string):
-    """Packt die Daten aus den Sensoren in ein Dict, damit es als csv abgespeichert werden kann"""
-    global Werte_Liste # Unsere Werte in einer Liste
-    sensor_werte_str = payload.split(';')
-    print(sensor_werte_str)
-    print(type(sensor_werte_str))
-    #Werte_Liste.append({"Aktueller Finger": finger,"sensor":sensor, "wert_raw": werte_raw, "werte_gefiltert": werte_after_filter, "Wert": werte, "Offset": sensorOffsets})
+def func_messungState(messungState_arduino):
+    global messungState
+    messungState = messungState_arduino
 
 def messung_speichern():
     """Speichert die Messung aus Werte_Liste in eine csv und nummeriert die Messung basierend auf der last_measurement.txt
@@ -50,17 +47,19 @@ def get_next_measurement_number():
     return last_number + 1
                     
 def loop():
-    """Loop wie der loop im Arduino Sketch. Hier wird eine LED rot blinken, um anzuzeigen, dass die MPU bereit ist und läuft"""
-    # Blink LED 1 in red
-    # Turn on the LED red segment(1, 0, 0)
-    Leds.set_led1_color(1,0,0)
-    time.sleep(1)   
-    
-    # Turn off the LED (0, 0, 0)
-    Leds.set_led1_color(0,0,0)
-    time.sleep(1)
+    """Loop wie der loop im Arduino Sketch"""
+    if(messungState):
+        startTime = time.time()
+            wert = Bridge.call("messung_sensoren",finger,sensor)
+        
+            #Werte_Liste.append({"Aktueller Finger" : finger, "sensoren": sensor, "Wert":wert})
+        endTime = time.time()
+        elapsedTime = endTime-startTime 
+        print(elapsedTime)
+        time.sleep(elapsedTime)
+    #print(Werte_Liste)
 
 # Start von dem Programm wie das normale Setup Skript
-Bridge.provide("envlope_read", envlope_read) # bereitstellen von Python Funktionen für das MCU
 Bridge.provide("messung_speichern",messung_speichern)
+Bridge.provide("messungState",func_messungState)
 App.run(user_loop=loop) # Die LED soll im Loop laufen
