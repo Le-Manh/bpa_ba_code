@@ -1,65 +1,131 @@
 import time
-from arduino.app_utils import App, Bridge, Leds
+import struct
 import csv
-import string
+from arduino.app_utils import App, Bridge, Leds
 
-# globale Variablen, die im gesamten Skripe gleichbleiben
-Werte_Liste = list()
-sensoren_index = range(5)
-fingerState = range(6)
-messungState = False
+# Globale Liste zum Sammeln aller Messdaten
+all_measurements = []
+is_recording = False
+current_finger_state = 0 # 0=little, 1=ring, etc.
 
-def func_messungState(messungState_arduino):
-    global messungState
-    messungState = messungState_arduino
+# Paylod-Format:
+# <B: count
+# <I: t0_ms
+# [ <B: dt_ms, <f: val1, <f: val2, <f: val3, <f: val4 ] x count
+# <H: crc16
+# Das '<' bedeutet Little-Endian Byte Order.
+SAMPLE_FORMAT = '<Bffff' # Format für ein Sample: dt_ms und 4 floats
+SAMPLE_SIZE = struct.calcsize(SAMPLE_FORMAT)
 
-def messung_speichern():
-    """Speichert die Messung aus Werte_Liste in eine csv und nummeriert die Messung basierend auf der last_measurement.txt
-        Da diese Funktion auch immer von der MCU Seite aufgerufen wird, wird die Variable werteVorhanden übergegeben, um sicherzustellen, dass Werte_Liste auch vollständig ist und gerade nicht beschrieben wird
+def crc16_update(crc, data):
+    """CRC-16/IBM (Modbus) Berechnung in Python."""
+    crc ^= data
+    for _ in range(8):
+        if crc & 1:
+            crc = (crc >> 1) ^ 0xA001
+        else:
+            crc >>= 1
+    return crc
+
+def parse_emg_frame(payload: bytes):
     """
-    print("es wird gespeichert")
-    global filename # Das wird gebraucht, damit beim nächsten Aufruf die Funktion noch weiß, wie die Datei hieß
-    global Werte_Liste
-    '''
-    measurement_number = get_next_measurement_number()
-    filename = f"Messung_{measurement_number}.csv"
-    with open("python/messdaten/last_measurement.txt", "w") as f:
-        f.write(str(measurement_number))
-    '''    
-    with open(f'python/messdaten/debug.csv', mode='w', encoding='utf-8', newline='') as file:
-        fieldnames = Werte_Liste[0].keys()    
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(Werte_Liste)
-    Werte_Liste.clear()
-            
+    Deserialisiert das binäre Datenpaket von der MCU.
+    """
+    global all_measurements
+    
+    # Prüfen, ob ein Overflow-Flag gesendet wurde
+    if payload and payload[0] == 0x21: # '!'
+        print("WARNUNG: MCU-Puffer ist übergelaufen! Einige Samples gingen verloren.")
+        payload = payload[1:]
 
-def get_next_measurement_number():
-    """Liest die letzte Messnummer aus der Datei und erhöht sie um 1"""
+    if len(payload) < 7: # Mindestgröße: count(1) + t0(4) + crc(2)
+        return
+
+    # CRC-Prüfsumme verifizieren
+    crc_from_mcu = struct.unpack('<H', payload[-2:])[0]
+    calculated_crc = 0
+    for byte in payload[:-2]:
+        calculated_crc = crc16_update(calculated_crc, byte)
+
+    if crc_from_mcu != calculated_crc:
+        print(f"FEHLER: CRC-Prüfsumme stimmt nicht überein! MCU: {crc_from_mcu}, Kalkuliert: {calculated_crc}. Verwerfe Paket.")
+        return
+
+    # Daten entpacken
     try:
-        with open("python/messdaten/last_measurement.txt", "r") as f:
-            last_number = int(f.read().strip())
-    except FileNotFoundError:
-        last_number = 0
-    except ValueError:
-        print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
-        last_number = 0
-    return last_number + 1
-                    
-def loop():
-    """Loop wie der loop im Arduino Sketch"""
-    if(messungState):
-        startTime = time.time()
-            wert = Bridge.call("messung_sensoren",finger,sensor)
+        count, t0_ms = struct.unpack_from('<BI', payload, 0)
+        offset = 5 # Start nach count und t0
         
-            #Werte_Liste.append({"Aktueller Finger" : finger, "sensoren": sensor, "Wert":wert})
-        endTime = time.time()
-        elapsedTime = endTime-startTime 
-        print(elapsedTime)
-        time.sleep(elapsedTime)
-    #print(Werte_Liste)
+        current_time_ms = t0_ms
+        
+        for i in range(count):
+            dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
+            if i > 0:
+                current_time_ms += dt_ms
+            
+            all_measurements.append({
+                "finger": current_finger_state,
+                "timestamp_ms": current_time_ms,
+                "sensor_0": v1,
+                "sensor_1": v2,
+                "sensor_2": v3,
+                "sensor_3": v4
+            })
+            offset += SAMPLE_SIZE
 
-# Start von dem Programm wie das normale Setup Skript
-Bridge.provide("messung_speichern",messung_speichern)
-Bridge.provide("messungState",func_messungState)
-App.run(user_loop=loop) # Die LED soll im Loop laufen
+    except struct.error as e:
+        print(f"Fehler beim Entpacken der Daten: {e}")
+
+
+def start_stop_recording():
+    """Wird per Bridge-Button oder einer anderen Logik getriggert."""
+    global is_recording, all_measurements
+    is_recording = not is_recording
+    
+    if is_recording:
+        print("Aufnahme gestartet...")
+        all_measurements = [] # Alte Daten löschen
+        Leds.set_led1_color(0, 1, 0) # Grüne LED für Aufnahme
+    else:
+        print("Aufnahme gestoppt. Speichere Daten...")
+        Leds.set_led1_color(1, 0, 0) # Rote LED für Stopp
+        save_data()
+        Leds.set_led1_color(0, 0, 0) # LED aus
+
+def save_data():
+    """Speichert die gesammelten Daten in einer CSV-Datei."""
+    if not all_measurements:
+        print("Keine Daten zum Speichern vorhanden.")
+        return
+
+    # Dateiname z.B. messung_finger0_1678886400.csv
+    filename = f"messdaten/messung_finger{current_finger_state}_{int(time.time())}.csv"
+    
+    try:
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = all_measurements[0].keys()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(all_measurements)
+        print(f"Daten erfolgreich in '{filename}' gespeichert.")
+    except Exception as e:
+        print(f"Fehler beim Speichern der Datei: {e}")
+
+def user_loop():
+    """Hauptschleife auf der MPU-Seite."""
+    if is_recording:
+        try:
+            # Datenblock von der MCU abholen
+            frame = Bridge.call("get_emg_frame")
+            if frame:
+                parse_emg_frame(bytes(frame))
+        except Exception as e:
+            print(f"Fehler bei Bridge.call: {e}")
+
+    time.sleep(0.1) # Alle 100ms nach neuen Daten fragen
+
+# --- Setup ---
+if __name__ == "__main__":
+    # Diese Funktionen könnten z.B. an die Buttons des Arduino Portenta gebunden werden
+    Bridge.provide("start_stop", start_stop_recording)
+    App.run(user_loop=user_loop)

@@ -1,34 +1,3 @@
-/*
-* Copyright 2017, OYMotion Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-*
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-*
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in
-*    the documentation and/or other materials provided with the
-*    distribution.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-* COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
-* THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-* DAMAGE.
-*
-*/
-
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
 #else
@@ -36,200 +5,227 @@
 #endif
 
 #include "EMGFilters.h"
-
-#define SensorInputPin A0 // input pin number
-#define SensorInputPin1 A1 // input pin number
-#define SensorInputPin2 A2 // input pin number
-#define SensorInputPin3 A3 // input pin number
-
-#define debug 1
-
 #include "Arduino_RouterBridge.h"
+#include <MsgPack.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 
-//Visuell feedback for finger
-#include <Arduino_LED_Matrix.h>
-#include "LED_Matrix.h"
+// --- Konfiguration ---
+#define NUM_SENSORS 4
+const uint16_t SAMPLE_INTERVAL_US = 1000; // 1000 µs -> 1000 Hz
+const uint16_t RING_SIZE = 256;          // Puffer für 256 Samples (~256 ms bei 1kHz)
 
-// discrete filters must works with fixed sample frequence
-// our emg filter only support "SAMPLE_FREQ_500HZ" or "SAMPLE_FREQ_1000HZ"
-// other sampleRate inputs will bypass all the EMG_FILTER
+// --- Sensor-Setup ---
+int sensorPins[] = {A0, A1, A2, A3};
+EMGFilters myFilters[NUM_SENSORS];
+float sensorOffsets[NUM_SENSORS];
 SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
-// For countries where power transmission is at 50 Hz
-// For countries where power transmission is at 60 Hz, need to change to
-// "NOTCH_FREQ_60HZ"
-// our emg filter only support 50Hz and 60Hz input
-// other inputs will bypass all the EMG_FILTER
 NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ;
 
-//Aus der Veranstaltung Vertiefung Medizininformatik
-int currentFinger;     // Definiert den Messzustand des Systems
-enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
+// --- Ringbuffer-Struktur ---
+struct Sample {
+    float values[NUM_SENSORS]; // Array für die 4 Sensorwerte
+    uint32_t t_ms;             // Zeitstempel in Millisekunden
+};
 
-//Sensordaten 
-int sensoren[] = {SensorInputPin,SensorInputPin1,SensorInputPin2,SensorInputPin3};
-int sensoren_length = std::size(sensoren); //das geht seit C++17
+volatile Sample ringBuf[RING_SIZE];
+volatile uint16_t head = 0;       // Nächste Schreibposition
+volatile uint16_t last_sent = 0;  // Position nach dem letzten gesendeten Sample
+volatile bool overflowed = false; // Flag für Pufferüberlauf
 
-EMGFilters myFilter[std::size(sensoren)];
-float sensorOffsets[std::size(sensoren)];
-// Feedback-LED und Interrupt Variablen
-const byte ledPin = 12;
-const byte interruptPin = 2;
-volatile byte ledState = LOW;
-volatile bool messungState = false;
+// --- Timer für präzise Abtastung (via Zephyr Kernel) ---
+static struct k_timer sampleTimer;
+atomic_t timer_ticks = ATOMIC_INIT(0); // Atomarer Zähler für anstehende Samples
+uint32_t sample_time_us = 0;
 
-//volatile bool WERTE_VORHANDEN = false; // this is used so we can track if we already took samples of every finger
-bool abgeschlossene_Finger = false; // this is used to trigger hochzaehlenFinger
-String payload = ""; // used to pack the sensor data for the MPU
+// --- Funktionsprototypen ---
+void readAllSensors(uint32_t t_ms);
+MsgPack::bin_t<uint8_t> get_emg_frame();
+void calibrateSensors();
+uint16_t crc16_update(uint16_t crc, uint8_t data);
 
-//Interrupt (ISR)
-void button_Interrupt()
-{
-  ledState = !ledState;
-  messungState = !messungState;
-  /*
-  if (currentFinger == thumb)
-      {
-        WERTE_VORHANDEN = true;
-      }
-  else
-  {
-    WERTE_VORHANDEN = false;
-  }
-  */
+
+// Timer-Callback wird bei jedem Intervall aufgerufen
+static void onSampleTimer(struct k_timer *timer_id) {
+    (void)timer_id;
+    atomic_inc(&timer_ticks); // Sicher den Zähler erhöhen
 }
-
-unsigned long timeBudget;
-
-int hochzaehlenFinger()
-{
-  if(currentFinger != thumb)
-  {
-    currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
-    return 0;
-  }else{ 
-    currentFinger = littleFinger;            // anderenfalls wird currentFinger = kleiner Finger gesetzt
-    return 1;
-  }
-}
-
-float messung_sensoren(int sensor, int finger)
-{
-  
-    int rawValue = analogRead(sensor);
-
-    // filter processing
-    float filteredValue = myFilter[finger].update(rawValue);
-
-    float correctedValue = filteredValue - sensorOffsets[finger];
-  
-  return correctedValue;
-}
-
-void calibrateSensors(){
-  const int calibrationSamples = 3000;
-  long sums[sensoren_length] = {0};
-
-  for(int i = 0; i < calibrationSamples; i++){
-    unsigned long calibLoopStart = micros();
-    for(int j=0; j < sensoren_length;j++){
-      int rawValue = analogRead(sensoren[j]);
-      int filteredValue = myFilter[j].update(rawValue);
-      sums[j] += filteredValue;
-    }
-    unsigned long calibElapsedTime = micros() - calibLoopStart;
-    if(calibElapsedTime < sampleRate) { // Ziel: sampleRate pro Sample
-        delayMicroseconds(sampleRate - calibElapsedTime);
-    }
-  }
-    
-  // Berechne den durchschnittlichen Offset für jeden Sensor
-  for (int i = 0; i < sensoren_length; i++) {
-    sensorOffsets[i] = (float)sums[i] / calibrationSamples;
-  }
-}
-
-Arduino_LED_Matrix matrix;
-uint8_t* matrix_feedback[] = {littleFinger_Frame, ringFinger_Frame, middleFinger_Frame, indexFinger_Frame, thumb_Frame};
 
 void setup() {
-    /* add setup code here */
-    //start Matrix
-    matrix.begin();
-    matrix.setGrayscaleBits(1);
-    matrix.draw(Hi_Frame);
+    Monitor.begin(115200);
+    Monitor.println("HAWK EMG-System startet...");
 
-    // setup for time cost measure
-    // using micros()
-    timeBudget = 1e6 / sampleRate;
-    // micros will overflow and auto return to zero every 70 minutes
-
-    // SensorPins konfigurieren, alle als Input
-    for(int i=0; i < sensoren_length; i++)
-      {
-        pinMode(sensoren[i],INPUT);
-      }
-  
-    for(int i=0; i < sensoren_length; i++)
-      {
-        myFilter[i].init(sampleRate, humFreq, true, true, true);
-      }
+    // Sensoren und Filter initialisieren
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        pinMode(sensorPins[i], INPUT);
+        myFilters[i].init(sampleRate, humFreq, true, true, true);
+    }
+    
+    // Kurze Verzögerung, um der MPU Zeit zum Starten zu geben
+    delay(1000); 
+    Monitor.println("Kalibrierung startet...");
     calibrateSensors();
-    
-    // open serial
-    Monitor.begin(9600);
+    Monitor.println("Kalibrierung abgeschlossen.");
 
-    //start Brigde
+    // Bridge initialisieren und Funktion bereitstellen
     Bridge.begin();
-    Bridge.provide("messung_sensoren",messung_sensoren);
-    Bridge.provide("hochzaehlenFinger",hochzaehlenFinger); //provide counting of finger for MCU
+    Bridge.provide("get_emg_frame", get_emg_frame);
 
-    //Feedback-LED Setup
-    pinMode(ledPin, OUTPUT);
-  
-    // Mapping der Finger, start Punkt
-    currentFinger = littleFinger;
-    
-    //Interrupt-Setup
-    pinMode(interruptPin,INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(interruptPin),button_Interrupt,FALLING); //attachInterrupt(pin, ISR, mode) 
+    // Zephyr Kernel Timer für 1000 Hz starten
+    k_timer_init(&sampleTimer, onSampleTimer, nullptr);
+    k_timer_start(&sampleTimer, K_USEC(SAMPLE_INTERVAL_US), K_USEC(SAMPLE_INTERVAL_US));
 }
 
 void loop() {
-    /* add main program code here */
-    // In order to make sure the ADC sample frequence on arduino,
-    // the time cost should be measured each loop
-    /*------------start here-------------------*/
+    // Holen, wie viele Samples vom Timer getriggert wurden
+    uint32_t pending_samples = atomic_set(&timer_ticks, 0);
 
-    unsigned long loopStartTime = micros();
-
-    Bridge.notify("messungState",messungState);
-    matrix.draw(matrix_feedback[currentFinger]);
-  
-    digitalWrite(ledPin,ledState);
-  
-/*------------end here---------------------*/
-    // Berechne die vergangene Zeit
-    unsigned long elapsedTime = micros() - loopStartTime;
-
-    // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
-    if(debug)
-    {
-      // Sende diesen Wert nur alle 100 Loops, um den Serial Monitor nicht zu fluten
-      static int loop_counter = 0;
-      
-      if(loop_counter++ > 100){
-        Monitor.print("Ausführungszeit (µs): ");
-        Monitor.println(elapsedTime);
-        loop_counter = 0;
-      }
+    if (pending_samples == 0) {
+        // Nichts zu tun, kurz schlafen, um CPU zu schonen
+        k_sleep(K_USEC(200)); //200 micros?
+    } else {
+        // Alle anstehenden Samples verarbeiten
+        while (pending_samples > 0) {
+            sample_time_us += SAMPLE_INTERVAL_US;
+            readAllSensors(sample_time_us / 1000); // Zeit in ms übergeben
+            pending_samples--;
+        }
     }
-  
-    // timeBudget ist 2000 µs für 500 Hz
-    if (elapsedTime < timeBudget) {
-        // Warte nur die verbleibende Zeit, um exakt auf 2000 µs zu kommen
-        delayMicroseconds(timeBudget - elapsedTime);
+    // Die Bridge-Kommunikation läuft im Hintergrund und blockiert den Loop nicht.
+}
+
+void readAllSensors(uint32_t t_ms) {
+    uint16_t next = (head + 1) % RING_SIZE;
+
+    // Pufferüberlauf prüfen: Wenn der nächste Schreib-Index den Lese-Index einholt
+    if (next == last_sent) {
+        overflowed = true;
+        // Ältestes Element verwerfen, indem der Lese-Zeiger verschoben wird
+        last_sent = (last_sent + 1) % RING_SIZE;
     }
-    // Wenn die Ausführung bereits länger als timeBudget gedauert hat,
-    // starten wir sofort den nächsten Loop. Die Abtastrate sinkt dann leicht,
-    // aber das ist das physikalisch Bestmögliche.
+
+    ringBuf[head].t_ms = t_ms;
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        int rawValue = analogRead(sensorPins[i]);
+        float filteredValue = myFilters[i].update(rawValue);
+        ringBuf[head].values[i] = filteredValue - sensorOffsets[i];
+    }
+    
+    head = next;
+}
+
+// Diese Funktion wird von Python aufgerufen
+MsgPack::bin_t<uint8_t> get_emg_frame() {
+    // Atomarer Zugriff auf die Zeiger, um Race Conditions zu vermeiden
+    noInterrupts();
+    uint16_t tail = last_sent;
+    uint16_t h = head;
+    bool ovf = overflowed;
+    overflowed = false;
+    interrupts();
+
+    MsgPack::bin_t<uint8_t> out;
+    uint16_t count = (h >= tail) ? (h - tail) : (RING_SIZE - tail + h);
+    
+    if (count == 0) return out; // Keine neuen Daten
+
+    // Frame-Puffer: count (1) + t0 (4) + count * (dt(1) + 4*float(16)) + crc(2)
+    static uint8_t frame[1 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2];
+    size_t idx = 0;
+    uint16_t crc = 0;
+
+    // 1. Anzahl der Samples (maximal 255 pro Paket)
+    uint8_t frame_count = (count > 255) ? 255 : count;
+    frame[idx++] = frame_count;
+
+    // FIX: Sichere Kopie des ersten Samples erstellen, um t0 zu extrahieren
+    Sample first_sample;
+    noInterrupts();
+    first_sample = ringBuf[tail];
+    interrupts();
+
+    // 2. Start-Zeitstempel des ersten Samples
+    uint32_t t0 = first_sample.t_ms;
+    memcpy(&frame[idx], &t0, sizeof(t0));
+    idx += sizeof(t0);
+
+    // 3. Alle Samples und Delta-Zeiten
+    uint32_t prev_t = t0;
+    uint16_t current_idx = tail;
+    for (uint16_t i = 0; i < frame_count; i++) {
+        // FIX: Erstelle eine sichere, lokale Kopie des aktuellen Samples
+        Sample temp_sample;
+        noInterrupts();
+        temp_sample = ringBuf[current_idx];
+        interrupts();
+
+        // Zeit-Delta berechnen (aus der sicheren Kopie)
+        uint32_t dt = temp_sample.t_ms - prev_t;
+        frame[idx++] = (dt > 255) ? 255 : (uint8_t)dt;
+        prev_t = temp_sample.t_ms;
+        
+        // Die 4 Sensor-Werte (aus der sicheren Kopie) kopieren
+        // Dies behebt den Compiler-Fehler, da temp_sample.values NICHT volatile ist.
+        memcpy(&frame[idx], &temp_sample.values, sizeof(float) * NUM_SENSORS);
+        idx += sizeof(float) * NUM_SENSORS;
+        
+        current_idx = (current_idx + 1) % RING_SIZE;
+    }
+
+    // 4. CRC16-Prüfsumme über die Daten berechnen
+    for (size_t i = 0; i < idx; i++) {
+        crc = crc16_update(crc, frame[i]);
+    }
+    memcpy(&frame[idx], &crc, sizeof(crc));
+    idx += sizeof(crc);
+
+    // Lesezeiger aktualisieren
+    noInterrupts();
+    last_sent = current_idx;
+    interrupts();
+    
+    // Optional: Überlauf-Signal an den Host senden
+    if (ovf) {
+        out.push_back(0x21); // '!'
+    }
+
+    // Frame in den MsgPack-Container kopieren
+    for (size_t i = 0; i < idx; i++) {
+        out.push_back(frame[i]);
+    }
+
+    return out;
+}
+
+
+// --- Hilfsfunktionen (Kalibrierung & CRC) ---
+void calibrateSensors() {
+    const int calibrationSamples = 2000;
+    long sums[NUM_SENSORS] = {0};
+
+    for (int i = 0; i < calibrationSamples; i++) {
+        for (int j = 0; j < NUM_SENSORS; j++) {
+            sums[j] += myFilters[j].update(analogRead(sensorPins[j]));
+        }
+        delayMicroseconds(SAMPLE_INTERVAL_US);
+    }
+
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        sensorOffsets[i] = (float)sums[i] / calibrationSamples;
+        Monitor.print("Sensor "); Monitor.print(i);
+        Monitor.print(" Offset: "); Monitor.println(sensorOffsets[i]);
+    }
+}
+
+// CRC-16/IBM (Modbus)
+uint16_t crc16_update(uint16_t crc, uint8_t data) {
+    crc ^= data;
+    for (uint8_t i = 0; i < 8; i++) {
+        if (crc & 1) {
+            crc = (crc >> 1) ^ 0xA001;
+        } else {
+            crc >>= 1;
+        }
+    }
+    return crc;
 }
