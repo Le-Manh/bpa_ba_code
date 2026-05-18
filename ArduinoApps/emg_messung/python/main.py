@@ -99,7 +99,7 @@ def save_data():
         return
 
     # Dateiname z.B. messung_finger0_1678886400.csv
-    filename = f"messdaten/messung_finger{current_finger_state}_{int(time.time())}.csv"
+    filename = f"python/messdaten/messung_finger{current_finger_state}_{int(time.time())}.csv"
     
     try:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:

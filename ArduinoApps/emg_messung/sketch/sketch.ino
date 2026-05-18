@@ -19,7 +19,7 @@ const uint16_t RING_SIZE = 256;          // Puffer für 256 Samples (~256 ms bei
 int sensorPins[] = {A0, A1, A2, A3};
 EMGFilters myFilters[NUM_SENSORS];
 float sensorOffsets[NUM_SENSORS];
-SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
 NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ;
 
 // --- Ringbuffer-Struktur ---
@@ -44,6 +44,17 @@ MsgPack::bin_t<uint8_t> get_emg_frame();
 void calibrateSensors();
 uint16_t crc16_update(uint16_t crc, uint8_t data);
 
+//interrupt und Feedback-LED
+const byte ledPin = 12;
+const byte interruptPin = 2;
+volatile byte ledState = LOW;
+volatile bool messungState = false;
+//Interrupt (ISR)
+void button_interrupt()
+{
+  ledState = !ledState;
+  messungState = !messungState;
+}
 
 // Timer-Callback wird bei jedem Intervall aufgerufen
 static void onSampleTimer(struct k_timer *timer_id) {
@@ -74,12 +85,25 @@ void setup() {
     // Zephyr Kernel Timer für 1000 Hz starten
     k_timer_init(&sampleTimer, onSampleTimer, nullptr);
     k_timer_start(&sampleTimer, K_USEC(SAMPLE_INTERVAL_US), K_USEC(SAMPLE_INTERVAL_US));
+
+    //Feedback-LED Setup
+    pinMode(ledPin, OUTPUT);
+
+    //Interrupt-Setup
+    pinMode(interruptPin,INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(interruptPin),button_interrupt,FALLING); //attachInterrupt(pin, ISR, mode) 
 }
 
 void loop() {
     // Holen, wie viele Samples vom Timer getriggert wurden
     uint32_t pending_samples = atomic_set(&timer_ticks, 0);
+    if (messungState){
+      Bridge.notify("start_stop");
+      messungState = !messungState;
+    }
 
+    digitalWrite(ledPin,ledState);
+    
     if (pending_samples == 0) {
         // Nichts zu tun, kurz schlafen, um CPU zu schonen
         k_sleep(K_USEC(200)); //200 micros?
