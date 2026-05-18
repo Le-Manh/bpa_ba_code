@@ -7,6 +7,10 @@
 .sudo_as_admin_successful
 .lesshst
 lost+found/
+
+## ignore files of the Arduino IDE. This was used to compile without the Arduino uno Q
+ArduinoApps/emg_messung/sketch/data/
+
 ## ignore GIT-bundles
 *.git
 .gitconfig
