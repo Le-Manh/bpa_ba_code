@@ -114,89 +114,75 @@ void readAllSensors(uint32_t t_ms) {
     head = next;
 }
 
-// Diese Funktion wird von Python aufgerufen
 MsgPack::bin_t<uint8_t> get_emg_frame() {
-    // Atomarer Zugriff auf die Zeiger, um Race Conditions zu vermeiden
+    // --- Kritischer Abschnitt START ---
     noInterrupts();
     uint16_t tail = last_sent;
     uint16_t h = head;
     bool ovf = overflowed;
     overflowed = false;
     interrupts();
+    // --- Kritischer Abschnitt ENDE ---
 
     MsgPack::bin_t<uint8_t> out;
     uint16_t count = (h >= tail) ? (h - tail) : (RING_SIZE - tail + h);
     
-    if (count == 0) return out; // Keine neuen Daten
+    if (count == 0) return out;
 
-    // Frame-Puffer: count (1) + t0 (4) + count * (dt(1) + 4*float(16)) + crc(2)
     static uint8_t frame[1 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2];
     size_t idx = 0;
     uint16_t crc = 0;
 
-    // 1. Anzahl der Samples (maximal 255 pro Paket)
     uint8_t frame_count = (count > 255) ? 255 : count;
     frame[idx++] = frame_count;
 
-    // FIX: Sichere Kopie des ersten Samples erstellen, um t0 zu extrahieren
-    Sample first_sample;
-    noInterrupts();
-    first_sample = ringBuf[tail];
-    interrupts();
-
-    // 2. Start-Zeitstempel des ersten Samples
-    uint32_t t0 = first_sample.t_ms;
+    // Zeitstempel des ersten Samples lesen (ist sicher, da h nicht über tail hinausläuft)
+    uint32_t t0 = ringBuf[tail].t_ms;
     memcpy(&frame[idx], &t0, sizeof(t0));
     idx += sizeof(t0);
 
-    // 3. Alle Samples und Delta-Zeiten
     uint32_t prev_t = t0;
-    uint16_t current_idx = tail;
+    uint16_t current_read_idx = tail;
     for (uint16_t i = 0; i < frame_count; i++) {
-        // FIX: Erstelle eine sichere, lokale Kopie des aktuellen Samples
-        Sample temp_sample;
-        noInterrupts();
-        temp_sample = ringBuf[current_idx];
-        interrupts();
-
-        // Zeit-Delta berechnen (aus der sicheren Kopie)
-        uint32_t dt = temp_sample.t_ms - prev_t;
-        frame[idx++] = (dt > 255) ? 255 : (uint8_t)dt;
-        prev_t = temp_sample.t_ms;
+        // === KORREKTUR START ===
+        // Erstelle eine lokale, nicht-volatile Kopie des Datensatzes
+        // durch eine explizite Speicher-Kopie.
+        Sample local_sample;
+        memcpy(&local_sample, (const void*)&ringBuf[current_read_idx], sizeof(Sample));
+        // === KORREKTUR ENDE ===
         
-        // Die 4 Sensor-Werte (aus der sicheren Kopie) kopieren
-        // Dies behebt den Compiler-Fehler, da temp_sample.values NICHT volatile ist.
-        memcpy(&frame[idx], &temp_sample.values, sizeof(float) * NUM_SENSORS);
+        uint32_t dt = local_sample.t_ms - prev_t;
+        frame[idx++] = (dt > 255) ? 255 : (uint8_t)dt;
+        prev_t = local_sample.t_ms;
+        
+        // Jetzt mit der sicheren, lokalen Kopie arbeiten - das funktioniert.
+        memcpy(&frame[idx], local_sample.values, sizeof(float) * NUM_SENSORS);
         idx += sizeof(float) * NUM_SENSORS;
         
-        current_idx = (current_idx + 1) % RING_SIZE;
+        current_read_idx = (current_read_idx + 1) % RING_SIZE;
     }
 
-    // 4. CRC16-Prüfsumme über die Daten berechnen
+    // CRC16 berechnen
     for (size_t i = 0; i < idx; i++) {
         crc = crc16_update(crc, frame[i]);
     }
     memcpy(&frame[idx], &crc, sizeof(crc));
     idx += sizeof(crc);
 
-    // Lesezeiger aktualisieren
+    // Lesezeiger (last_sent) atomar aktualisieren
     noInterrupts();
-    last_sent = current_idx;
+    last_sent = current_read_idx;
     interrupts();
     
-    // Optional: Überlauf-Signal an den Host senden
     if (ovf) {
         out.push_back(0x21); // '!'
     }
 
     // Frame in den MsgPack-Container kopieren
-    for (size_t i = 0; i < idx; i++) {
-        out.push_back(frame[i]);
-    }
+    out.assign(frame, frame + idx); 
 
     return out;
 }
-
 
 // --- Hilfsfunktionen (Kalibrierung & CRC) ---
 void calibrateSensors() {
