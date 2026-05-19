@@ -12,7 +12,7 @@
 
 // --- activate Timing Debug ---
 // to activate Timing Debug change the value to 1 otherwise change it to 0
-#define TIMING_DEBUG 0
+#define TIMING_DEBUG 1
 
 #if TIMING_DEBUG == 1
   //--- Timing DEBUG Variablen ---
@@ -64,6 +64,7 @@ void button_interrupt()
 {
   ledState = !ledState;
   messungState = !messungState;
+  Bridge.notify("start_stop");
 }
 
 // Timer-Callback wird bei jedem Intervall aufgerufen
@@ -105,11 +106,6 @@ void setup() {
 void loop() {
     // Holen, wie viele Samples vom Timer getriggert wurden
     uint32_t pending_samples = atomic_set(&timer_ticks, 0);
-    
-    if (messungState){
-      Bridge.notify("start_stop");
-      messungState = !messungState;
-    }
 
     digitalWrite(ledPin,ledState);
     
@@ -120,7 +116,9 @@ void loop() {
         // Alle anstehenden Samples verarbeiten
         while (pending_samples > 0) {
             sample_time_us += SAMPLE_INTERVAL_US;
-            readAllSensors(sample_time_us / (int) sampleRate ); // Zeit in ms übergeben
+            if (messungState){
+              readAllSensors(sample_time_us / (int) sampleRate ); // Zeit in ms übergeben
+            }
             pending_samples--;
             #if TIMING_DEBUG == 1
               processed_sample_count++;  
