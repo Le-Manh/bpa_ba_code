@@ -74,7 +74,7 @@ static void onSampleTimer(struct k_timer *timer_id) {
 }
 
 void setup() {
-    Monitor.begin(9600); //Monitor can only be 9600
+    Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
     for (int i = 0; i < NUM_SENSORS; i++) {
         pinMode(sensorPins[i], INPUT);
