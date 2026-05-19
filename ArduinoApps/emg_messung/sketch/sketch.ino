@@ -23,7 +23,7 @@
 // --- Konfiguration ---
 #define NUM_SENSORS 4
 const uint16_t SAMPLE_INTERVAL_US = 2000; // 2000 µs -> 500 Hz
-const uint16_t RING_SIZE = 256;          // Puffer für 256 Samples (~256 ms bei 1kHz)
+#define RING_SIZE 512 // Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt
 
 // --- Sensor-Setup ---
 int sensorPins[] = {A0, A1, A2, A3};
@@ -176,9 +176,9 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     if (count == 0) return out; // Keine Werte vorhanden
 
     // frame wird als Buffer genutzt, worst case Größe eines Frames:
-    static uint8_t frame[1 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2]; 
+    static uint8_t frame[2 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2]; 
     /* Die magic Numbers setzen sich zusammen aus:
-      1: variable count (uint_8t) --> 1 Byte
+      2: variable count (uint16_t) --> 2 Byte
       4: variable t0/Zeitstempel (uint_32t) --> 4 Byte
       RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) Maximale Größe aller Daten im Puffer, die Magic Number hier ist die Göße eines Bytes ; floats sind auf dem Arduino 4 Byte groß
       2: Größe der CRC Prüfsumme (uint16_t) -–> 2 Byte
@@ -186,8 +186,9 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     size_t idx = 0;
     uint16_t crc = 0;
 
-    uint8_t frame_count = (count > 255) ? 255 : count; // Die Menge an Werten sollten in einem 8-Bit verpackt werden deswegen die maximalen Werte von 255
-    frame[idx++] = frame_count; // count liegt an index (idx) 0, jetzt werden die anderen Teile des Arrays genutzt
+    uint16_t frame_count = count; // Erhöhung des frames von 8-Bit auf 16 um den höheren Buffer abzufangen
+    memcpy(&frame[idx], &frame_count, sizeof(frame_count));
+	idx += sizeof(frame_count);
 
     // Zeitstempel des ersten Samples lesen (ist sicher, da h nicht über tail hinausläuft)
     uint32_t t0 = ringBuf[tail].t_ms; // den zuletzt gesendeten Zeitstempel auslesen

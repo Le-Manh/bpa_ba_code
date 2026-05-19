@@ -40,7 +40,7 @@ def parse_emg_frame(payload: bytes):
         print("WARNUNG: MCU-Puffer ist übergelaufen! Einige Samples gingen verloren.")
         payload = payload[1:]
 
-    if len(payload) < 7: # Mindestgröße: count(1) + t0(4) + crc(2)
+    if len(payload) < 8: # Mindestgröße: count(2) + t0(4) + crc(2)
         return
 
     # CRC-Prüfsumme verifizieren
@@ -55,8 +55,8 @@ def parse_emg_frame(payload: bytes):
 
     # Daten entpacken
     try:
-        count, t0_ms = struct.unpack_from('<BI', payload, 0)
-        offset = 5 # Start nach count und t0, weil count 1 Byte (uint8_t) groß ist und t0 4 Byte (uint32_t)) --> 5 byte
+        count, t0_ms = struct.unpack_from('<HI', payload, 0)
+        offset = 6 # Start nach count und t0, weil count 2 Byte (uint16_t) groß ist und t0 4 Byte (uint32_t)) --> 6 byte
         
         current_time_ms = t0_ms
         
@@ -138,7 +138,7 @@ def user_loop():
         except Exception as e:
             print(f"Fehler bei Bridge.call: {e}")
     
-    time.sleep(0.1) # Alle 100ms nach neuen Daten fragen
+    time.sleep(0.01) # Alle 100ms nach neuen Daten fragen
 
 # --- Setup ---
 if __name__ == "__main__":
