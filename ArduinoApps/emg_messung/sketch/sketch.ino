@@ -240,22 +240,24 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     return out;
 }
 
-// --- Hilfsfunktionen (Kalibrierung & CRC) ---
+// --- Kalibrierung ---
 void calibrateSensors() {
     const int calibrationSamples = 2000;
     long sums[NUM_SENSORS] = {0};
 
     for (int i = 0; i < calibrationSamples; i++) {
+         unsigned long calibLoopStart = micros();
         for (int j = 0; j < NUM_SENSORS; j++) {
             sums[j] += myFilters[j].update(analogRead(sensorPins[j]));
         }
-        delayMicroseconds(SAMPLE_INTERVAL_US);
+        unsigned long calibElapsedTime = micros() - calibLoopStart;
+        if(calibElapsedTime < sampleRate) { // Ziel: sampleRate pro Sample
+          delayMicroseconds(sampleRate - calibElapsedTime); // um die Abtastrate konstant zu halten
+        }
     }
 
     for (int i = 0; i < NUM_SENSORS; i++) {
         sensorOffsets[i] = (float)sums[i] / calibrationSamples;
-        Monitor.print("Sensor "); Monitor.print(i);
-        Monitor.print(" Offset: "); Monitor.println(sensorOffsets[i]);
     }
 }
 
