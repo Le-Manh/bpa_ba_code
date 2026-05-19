@@ -235,7 +235,7 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     }
 
     // Frame in den MsgPack-Container kopieren
-    out.assign(frame, frame + idx); // vector out wird der fram assigned: https://en.cppreference.com/cpp/container/vector/assign, hier wird ausgenutzt, dass Pointer iterables sind
+    out.insert(out.end(),frame, frame + idx); // vector out wird der frame inserted: https://en.cppreference.com/cpp/container/vector/insert, hier wird ausgenutzt, dass Pointer iterables sind
 
     return out;
 }
