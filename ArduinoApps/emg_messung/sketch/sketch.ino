@@ -12,7 +12,7 @@
 
 // --- Konfiguration ---
 #define NUM_SENSORS 4
-const uint16_t SAMPLE_INTERVAL_US = 1000; // 1000 µs -> 1000 Hz
+const uint16_t SAMPLE_INTERVAL_US = 2000; // 2000 µs -> 500 Hz
 const uint16_t RING_SIZE = 256;          // Puffer für 256 Samples (~256 ms bei 1kHz)
 
 // --- Sensor-Setup ---
@@ -63,8 +63,7 @@ static void onSampleTimer(struct k_timer *timer_id) {
 }
 
 void setup() {
-    Monitor.begin(115200);
-    Monitor.println("HAWK EMG-System startet...");
+    Monitor.begin(9600); //Monitor can only be 9600
 
     // Sensoren und Filter initialisieren
     for (int i = 0; i < NUM_SENSORS; i++) {
@@ -79,12 +78,12 @@ void setup() {
     Monitor.println("Kalibrierung abgeschlossen.");
 
     // Bridge initialisieren und Funktion bereitstellen
-    Bridge.begin();
+    Bridge.begin(); //Bridge is communicating with baud 115200
     Bridge.provide("get_emg_frame", get_emg_frame);
 
-    // Zephyr Kernel Timer für 1000 Hz starten
-    k_timer_init(&sampleTimer, onSampleTimer, nullptr);
-    k_timer_start(&sampleTimer, K_USEC(SAMPLE_INTERVAL_US), K_USEC(SAMPLE_INTERVAL_US));
+    // Zephyr Kernel Timer für 500 Hz starten
+    k_timer_init(&sampleTimer, onSampleTimer, nullptr); // init und docs hier: https://docs.zephyrproject.org/latest/kernel/services/timing/timers.html#defining-a-timer
+    k_timer_start(&sampleTimer, K_USEC(SAMPLE_INTERVAL_US), K_USEC(SAMPLE_INTERVAL_US)); //use of start timer: https://docs.zephyrproject.org/latest/kernel/services/timing/timers.html#using-a-timer-expiry-function
 
     //Feedback-LED Setup
     pinMode(ledPin, OUTPUT);
@@ -97,6 +96,7 @@ void setup() {
 void loop() {
     // Holen, wie viele Samples vom Timer getriggert wurden
     uint32_t pending_samples = atomic_set(&timer_ticks, 0);
+    
     if (messungState){
       Bridge.notify("start_stop");
       messungState = !messungState;
@@ -106,13 +106,14 @@ void loop() {
     
     if (pending_samples == 0) {
         // Nichts zu tun, kurz schlafen, um CPU zu schonen
-        k_sleep(K_USEC(200)); //200 micros?
+        k_sleep(K_USEC(200)); //200 microsseconds
     } else {
         // Alle anstehenden Samples verarbeiten
         while (pending_samples > 0) {
             sample_time_us += SAMPLE_INTERVAL_US;
-            readAllSensors(sample_time_us / 1000); // Zeit in ms übergeben
+            readAllSensors(sample_time_us / (int) sampleRate ); // Zeit in ms übergeben
             pending_samples--;
+            processed_sample_count++;
         }
     }
     // Die Bridge-Kommunikation läuft im Hintergrund und blockiert den Loop nicht.
@@ -134,7 +135,6 @@ void readAllSensors(uint32_t t_ms) {
         float filteredValue = myFilters[i].update(rawValue);
         ringBuf[head].values[i] = filteredValue - sensorOffsets[i];
     }
-    
     head = next;
 }
 
