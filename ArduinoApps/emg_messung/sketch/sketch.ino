@@ -74,7 +74,6 @@ static void onSampleTimer(struct k_timer *timer_id) {
 
 void setup() {
     Monitor.begin(9600); //Monitor can only be 9600
-
     // Sensoren und Filter initialisieren
     for (int i = 0; i < NUM_SENSORS; i++) {
         pinMode(sensorPins[i], INPUT);
@@ -165,6 +164,7 @@ void readAllSensors(uint32_t t_ms) {
 MsgPack::bin_t<uint8_t> get_emg_frame() {
     // --- Kritischer Abschnitt START ---
     noInterrupts();
+    // Variablen vom Ringbuffer auslesen und als kopie überführen
     uint16_t tail = last_sent;
     uint16_t h = head;
     bool ovf = overflowed;
@@ -172,62 +172,70 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     interrupts();
     // --- Kritischer Abschnitt ENDE ---
 
-    MsgPack::bin_t<uint8_t> out;
-    uint16_t count = (h >= tail) ? (h - tail) : (RING_SIZE - tail + h);
+    MsgPack::bin_t<uint8_t> out; // Ergebnis als MsgPack verpacken und dann versenden über die Bridge, bin_t ist ein Alias für std::vector aus msgPack: https://msgpack.org/#type-aliases-for-str--bin--array--map
+    uint16_t count = (h >= tail) ? (h - tail) : (RING_SIZE - tail + h); // Abzählen wie viele Werte im Buffer sind, da es ein Ringbuffer ist kann tail auch größer sein als head. Deswegen der tertiäre Operator
     
-    if (count == 0) return out;
+    if (count == 0) return out; // Keine Werte vorhanden
 
-    static uint8_t frame[1 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2];
+    // frame wird als Buffer genutzt, worst case Größe eines Frames:
+    static uint8_t frame[1 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2]; 
+    /* Die magic Numbers setzen sich zusammen aus:
+      1: variable count (uint_8t) --> 1 Byte
+      4: variable t0/Zeitstempel (uint_32t) --> 4 Byte
+      RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) Maximale Größe aller Daten im Puffer, die Magic Number hier ist die Göße eines Bytes ; floats sind auf dem Arduino 4 Byte groß
+      2: Größe der CRC Prüfsumme (uint16_t) -–> 2 Byte
+    */
     size_t idx = 0;
     uint16_t crc = 0;
 
-    uint8_t frame_count = (count > 255) ? 255 : count;
-    frame[idx++] = frame_count;
+    uint8_t frame_count = (count > 255) ? 255 : count; // Die Menge an Werten sollten in einem 8-Bit verpackt werden deswegen die maximalen Werte von 255
+    frame[idx++] = frame_count; // count liegt an index (idx) 0, jetzt werden die anderen Teile des Arrays genutzt
 
     // Zeitstempel des ersten Samples lesen (ist sicher, da h nicht über tail hinausläuft)
-    uint32_t t0 = ringBuf[tail].t_ms;
-    memcpy(&frame[idx], &t0, sizeof(t0));
-    idx += sizeof(t0);
+    uint32_t t0 = ringBuf[tail].t_ms; // den zuletzt gesendeten Zeitstempel auslesen
+  
+    // memcpy (memorycopy) void* memcpy( void* dest, const void* src, std::size_t count ); aus https://en.cppreference.com/cpp/string/byte/memcpy
+    memcpy(&frame[idx], &t0, sizeof(t0)); // kopiert den Zeitstempel ins frame, die Anzahl an kopierten Bits wird von sizeof(t0) bestimmt
+  
+    idx += sizeof(t0); // Array wird weitergeschoben um die Größe des Zeitstempels
 
-    uint32_t prev_t = t0;
-    uint16_t current_read_idx = tail;
-    for (uint16_t i = 0; i < frame_count; i++) {
-        // === KORREKTUR START ===
+    uint32_t prev_t = t0; // speichern des letzten gelesenen Zeitstempels
+    uint16_t current_read_idx = tail; // den derzeitigen auszulesenen Puffer Teil aufnehmen
+    for (uint16_t i = 0; i < frame_count; i++) { // läuft so lange wie die anzahl an Daten die wir aus dem Puffer lesen sollten
         // Erstelle eine lokale, nicht-volatile Kopie des Datensatzes
         // durch eine explizite Speicher-Kopie.
         Sample local_sample;
-        memcpy(&local_sample, (const void*)&ringBuf[current_read_idx], sizeof(Sample));
-        // === KORREKTUR ENDE ===
+        memcpy(&local_sample, (const void*)&ringBuf[current_read_idx], sizeof(Sample)); // kopiert den ringBuf in die neu erstellte Variable
         
-        uint32_t dt = local_sample.t_ms - prev_t;
-        frame[idx++] = (dt > 255) ? 255 : (uint8_t)dt;
-        prev_t = local_sample.t_ms;
+        uint32_t dt = local_sample.t_ms - prev_t; // wir speichern nur das delta um die Menge an Daten zu reduzieren
+        frame[idx++] = (dt > 255) ? 255 : (uint8_t)dt; // Falls dt zu groß wird müssen wir es auf 8 Bit reduzieren
+        prev_t = local_sample.t_ms; // speichern des letzten t_ms um die Daten danach auch richtig aufzunehmen
         
-        // Jetzt mit der sicheren, lokalen Kopie arbeiten - das funktioniert.
-        memcpy(&frame[idx], local_sample.values, sizeof(float) * NUM_SENSORS);
-        idx += sizeof(float) * NUM_SENSORS;
+        // Jetzt mit der sicheren, lokalen Kopie arbeiten
+        memcpy(&frame[idx], local_sample.values, sizeof(float) * NUM_SENSORS); // Kopieren der Werte in den Frame
+        idx += sizeof(float) * NUM_SENSORS; // Verschieben des Index um die Größe der Messwerte
         
         current_read_idx = (current_read_idx + 1) % RING_SIZE;
     }
 
-    // CRC16 berechnen
+    // CRC16 berechnen (cyclic redundancy check)
     for (size_t i = 0; i < idx; i++) {
-        crc = crc16_update(crc, frame[i]);
+        crc = crc16_update(crc, frame[i]); // crc für jeden index im Frame berechnen
     }
-    memcpy(&frame[idx], &crc, sizeof(crc));
-    idx += sizeof(crc);
+    memcpy(&frame[idx], &crc, sizeof(crc)); // kopieren des berechneten crc in das frame
+    idx += sizeof(crc); // Erhöhung des Index um die größe des crc
 
     // Lesezeiger (last_sent) atomar aktualisieren
     noInterrupts();
-    last_sent = current_read_idx;
+    last_sent = current_read_idx; // aktualisierung des last_sent
     interrupts();
     
     if (ovf) {
-        out.push_back(0x21); // '!'
+        out.push_back(0x21); // 0x21 ASCII Zeichen für '!' wird ans Ende angehangen wenn ein Overflow im RingBuffer passiert ist https://en.cppreference.com/cpp/container/vector/push_back
     }
 
     // Frame in den MsgPack-Container kopieren
-    out.assign(frame, frame + idx); 
+    out.assign(frame, frame + idx); // vector out wird der fram assigned: https://en.cppreference.com/cpp/container/vector/assign, hier wird ausgenutzt, dass Pointer iterables sind
 
     return out;
 }
@@ -251,14 +259,14 @@ void calibrateSensors() {
     }
 }
 
-// CRC-16/IBM (Modbus)
+// CRC-16/IBM (Modbus) Beispiel: https://www.codegenes.net/blog/function-to-calculate-a-crc16-checksum/#what-is-crc16
 uint16_t crc16_update(uint16_t crc, uint8_t data) {
-    crc ^= data;
-    for (uint8_t i = 0; i < 8; i++) {
-        if (crc & 1) {
-            crc = (crc >> 1) ^ 0xA001;
+    crc ^= data; // XOR mit crc und data
+    for (uint8_t i = 0; i < 8; i++) { // 8 mal weil data uint8_t ist
+        if (crc & 1) { // AND mit CRC und 1 --> Kontrolle ob LSB eine 1 ist
+            crc = (crc >> 1) ^ 0xA001; // 0xA001 ist ein Polynom aus dem Algorithmus: https://codingtechroom.com/question/-implement-crc16-0xa001; Es wird eig ein 0x8005 genutzt. Mit 0xA001 ist ein bit reflektiert
         } else {
-            crc >>= 1;
+            crc >>= 1; // Schieben wenn LSB 0 ist
         }
     }
     return crc;
