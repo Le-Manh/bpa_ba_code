@@ -10,6 +10,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
 
+//--- Timing DEBUG Variablen ---
+volatile uint32_t processed_sample_count = 0;
+uint32_t last_report_time = 0;
+
 // --- Konfiguration ---
 #define NUM_SENSORS 4
 const uint16_t SAMPLE_INTERVAL_US = 2000; // 2000 µs -> 500 Hz
@@ -115,6 +119,16 @@ void loop() {
             pending_samples--;
             processed_sample_count++;
         }
+    }
+	// Einmal pro Sekunde einen Bericht ausgeben nur im DEBUG wichtig
+    uint32_t current_time = millis();
+    if (current_time - last_report_time >= 1000) {
+        Monitor.print("Sample Rate: ");
+        Monitor.print(processed_sample_count);
+        Monitor.println(" Hz");
+        
+        processed_sample_count = 0;
+        last_report_time = current_time;
     }
     // Die Bridge-Kommunikation läuft im Hintergrund und blockiert den Loop nicht.
 }
