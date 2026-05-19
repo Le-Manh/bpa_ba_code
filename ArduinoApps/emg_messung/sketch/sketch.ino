@@ -10,6 +10,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
 
+// --- activate Timing Debug ---
+// to activate Timing Debug change the value to 1 otherwise change it to 0
 #define TIMING_DEBUG 0
 
 #if TIMING_DEBUG == 1
