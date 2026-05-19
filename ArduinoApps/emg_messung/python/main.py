@@ -1,24 +1,26 @@
 import time
-import struct
+import struct # dieses Modul kann C structs zu Python objekte konvertieren
 import csv
 from arduino.app_utils import App, Bridge, Leds
+
+TIMING_DEBUG = True # used to measure the time to get one frame
 
 # Globale Liste zum Sammeln aller Messdaten
 all_measurements = []
 is_recording = False
 current_finger_state = 0 # 0=little, 1=ring, etc.
 
-# Paylod-Format:
-# <B: count
-# <I: t0_ms
-# [ <B: dt_ms, <f: val1, <f: val2, <f: val3, <f: val4 ] x count
-# <H: crc16
+# Payload-Format: to get payload characters: https://docs.python.org/3/library/struct.html#format-characters
+# <B: count (B: unsigned char (uint8_t)) --> int (Python)
+# <I: t0_ms (I: unsigned int (uint32_t)) --> int (Python)
+# [ <B: dt_ms, <f: val1, <f: val2, <f: val3, <f: val4 ] x count (f steht für float (4 Byte)) --> float (python)
+# <H: crc16 (H: unsigned short (uint16_t)) --> int (Python)
 # Das '<' bedeutet Little-Endian Byte Order.
 SAMPLE_FORMAT = '<Bffff' # Format für ein Sample: dt_ms und 4 floats
 SAMPLE_SIZE = struct.calcsize(SAMPLE_FORMAT)
 
 def crc16_update(crc, data):
-    """CRC-16/IBM (Modbus) Berechnung in Python."""
+    """CRC-16/IBM (Modbus) Berechnung in Python. Die Berechnung ist genauso wie auf der MCU Seite"""
     crc ^= data
     for _ in range(8):
         if crc & 1:
@@ -34,7 +36,7 @@ def parse_emg_frame(payload: bytes):
     global all_measurements
     
     # Prüfen, ob ein Overflow-Flag gesendet wurde
-    if payload and payload[0] == 0x21: # '!'
+    if payload and payload[0] == 0x21: # 0x21 ASCII: '!', im Payload steht an erster Stelle das '!', wenn es zu einem ovf kam
         print("WARNUNG: MCU-Puffer ist übergelaufen! Einige Samples gingen verloren.")
         payload = payload[1:]
 
@@ -42,10 +44,10 @@ def parse_emg_frame(payload: bytes):
         return
 
     # CRC-Prüfsumme verifizieren
-    crc_from_mcu = struct.unpack('<H', payload[-2:])[0]
+    crc_from_mcu = struct.unpack('<H', payload[-2:])[0] # Einlesen des crc Dabei nur die letzten beiden Bytes, wo unser CRC abegelegt worden ist, Das [0] ist wichtig, weil die Rückgabe von struct.unpack immer ein tuple ist also: '(crc,)'
     calculated_crc = 0
     for byte in payload[:-2]:
-        calculated_crc = crc16_update(calculated_crc, byte)
+        calculated_crc = crc16_update(calculated_crc, byte) # eigene Berechnung auf MPU Seite
 
     if crc_from_mcu != calculated_crc:
         print(f"FEHLER: CRC-Prüfsumme stimmt nicht überein! MCU: {crc_from_mcu}, Kalkuliert: {calculated_crc}. Verwerfe Paket.")
@@ -54,7 +56,7 @@ def parse_emg_frame(payload: bytes):
     # Daten entpacken
     try:
         count, t0_ms = struct.unpack_from('<BI', payload, 0)
-        offset = 5 # Start nach count und t0
+        offset = 5 # Start nach count und t0, weil count 1 Byte (uint8_t) groß ist und t0 4 Byte (uint32_t)) --> 5 byte
         
         current_time_ms = t0_ms
         
@@ -78,7 +80,7 @@ def parse_emg_frame(payload: bytes):
 
 
 def start_stop_recording():
-    """Wird per Bridge-Button oder einer anderen Logik getriggert."""
+    """Wird per Interrupt im MCU getriggert"""
     global is_recording, all_measurements
     is_recording = not is_recording
     
@@ -116,12 +118,26 @@ def user_loop():
     if is_recording:
         try:
             # Datenblock von der MCU abholen
+            if TIMING_DEBUG:
+                start = time.time()
             frame = Bridge.call("get_emg_frame")
+            if TIMING_DEBUG:    
+                end = time.time()
+                dt_get_emg_frame = end - start
+                print(f"Getting emg frame needed: {dt_get_emg_frame} s")
+            
             if frame:
+                if TIMING_DEBUG:
+                    start = time.time()
                 parse_emg_frame(bytes(frame))
+                if TIMING_DEBUG:
+                    end = time.time()
+                    dt_parsing_emg_frame = end - start
+                    print(f"Parsing Frame needed: {dt_parsing_emg_frame} s")
+                    print(f"Time of both: {dt_get_emg_frame + dt_parsing_emg_frame}")
         except Exception as e:
             print(f"Fehler bei Bridge.call: {e}")
-
+    
     time.sleep(0.1) # Alle 100ms nach neuen Daten fragen
 
 # --- Setup ---
