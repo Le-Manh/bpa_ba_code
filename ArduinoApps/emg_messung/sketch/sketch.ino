@@ -10,6 +10,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
 
+// Visuell Feedback for finger
+#include <Arduino_LED_Matrix.h>
+#include "LED_Matrix.h"
+
 // --- activate Timing Debug ---
 // to activate Timing Debug change the value to 1 otherwise change it to 0
 #define TIMING_DEBUG 1
@@ -75,7 +79,20 @@ static void onSampleTimer(struct k_timer *timer_id) {
     atomic_inc(&timer_ticks); // Sicher den Zähler erhöhen
 }
 
+// --- LED Matrix Feedback ---
+Arduino_LED_Matrix matrix;
+enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
+int currentFinger;
+uint8_t* matrix_feedback[] = {littleFinger_Frame, ringFinger_Frame, middleFinger_Frame, indexFinger_Frame, thumb_Frame};
+bool changeFinger = false;
+
 void setup() {
+    // start Matrix and feedback that MCU is running
+    matrix.begin();
+    matrix.setGrayscaleBits(1);
+    matrix.draw(Hi_Frame); 
+    currentFinger = littleFinger;
+
     Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
     for (int i = 0; i < NUM_SENSORS; i++) {
@@ -103,6 +120,9 @@ void setup() {
     //Interrupt-Setup
     pinMode(interruptPin,INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(interruptPin),button_interrupt,FALLING); //attachInterrupt(pin, ISR, mode) 
+
+    //Setup beendet:
+    matrix.draw(matrix_feedback[currentFinger]);
 }
 
 void loop() {
@@ -128,10 +148,21 @@ void loop() {
         }
       if (start_stop_mpu) {
         //Die Aufnahme der Messungen wird für jeden Finger einmal getriggert, um die Kommunikation zu verringern
+        noInterrupts();
         Bridge.notify("start_stop");
         start_stop_mpu = !start_stop_mpu;
+        interrupts();
+        // changes Finger and Matrix only on the 2nd push of the interrupt
+        if (changeFinger) {
+          hochzaehlenFinger();
+          matrix.draw(matrix_feedback[currentFinger]);
+          }
+        changeFinger = !changeFinger;
+        }
       }
-    }
+
+    
+    
       #if TIMING_DEBUG == 1   
       // Einmal pro Sekunde einen Bericht ausgeben nur im DEBUG wichtig
       uint32_t current_time = millis();
@@ -278,4 +309,15 @@ uint16_t crc16_update(uint16_t crc, uint8_t data) {
         }
     }
     return crc;
+}
+
+// Hilfsfunktion zum Beschreiben der LED Matrix
+void hochzaehlenFinger()
+{
+  if(currentFinger != thumb)
+  {
+    currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
+  }else{ 
+    currentFinger = littleFinger;     // anderenfalls wird currentFinger = kleiner Finger gesetzt
+  }
 }
