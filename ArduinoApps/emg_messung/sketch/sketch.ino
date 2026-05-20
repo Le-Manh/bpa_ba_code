@@ -23,7 +23,8 @@
 // --- Konfiguration ---
 #define NUM_SENSORS 4
 const uint16_t SAMPLE_INTERVAL_US = 2000; // 2000 µs -> 500 Hz
-#define RING_SIZE 512 // Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt
+// Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt (geändert von 255 zu 512)
+#define RING_SIZE 512
 
 // --- Sensor-Setup ---
 int sensorPins[] = {A0, A1, A2, A3};
@@ -59,12 +60,13 @@ const byte ledPin = 12;
 const byte interruptPin = 2;
 volatile byte ledState = LOW;
 volatile bool messungState = false;
+volatile bool start_stop_mpu = false;
 //Interrupt (ISR)
 void button_interrupt()
 {
   ledState = !ledState;
   messungState = !messungState;
-  Bridge.notify("start_stop");
+  start_stop_mpu = !start_stop_mpu;
 }
 
 // Timer-Callback wird bei jedem Intervall aufgerufen
@@ -116,7 +118,7 @@ void loop() {
         // Alle anstehenden Samples verarbeiten
         while (pending_samples > 0) {
             sample_time_us += SAMPLE_INTERVAL_US;
-            if (messungState){
+            if (messungState) {
               readAllSensors(sample_time_us / (int) sampleRate ); // Zeit in ms übergeben
             }
             pending_samples--;
@@ -124,6 +126,11 @@ void loop() {
               processed_sample_count++;  
             #endif
         }
+      if (start_stop_mpu) {
+        //Die Aufnahme der Messungen wird für jeden Finger einmal getriggert, um die Kommunikation zu verringern
+        Bridge.notify("start_stop");
+        start_stop_mpu = !start_stop_mpu;
+      }
     }
       #if TIMING_DEBUG == 1   
       // Einmal pro Sekunde einen Bericht ausgeben nur im DEBUG wichtig

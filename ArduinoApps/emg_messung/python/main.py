@@ -138,7 +138,7 @@ def user_loop():
         except Exception as e:
             print(f"Fehler bei Bridge.call: {e}")
     
-    time.sleep(0.01) # Alle 100ms nach neuen Daten fragen
+    time.sleep(0.01) # Alle 10ms nach neuen Daten fragen
 
 # --- Setup ---
 if __name__ == "__main__":
