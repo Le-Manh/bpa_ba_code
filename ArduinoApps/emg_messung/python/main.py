@@ -3,12 +3,13 @@ import struct # dieses Modul kann C structs zu Python objekte konvertieren
 import csv
 from arduino.app_utils import App, Bridge, Leds
 
-TIMING_DEBUG = True # used to measure the time to get one frame
+TIMING_DEBUG = False # used to measure the time to get one frame
 
 # Globale Liste zum Sammeln aller Messdaten
 all_measurements = []
 is_recording = False
-current_finger_state = 0 # 0=little, 1=ring, etc.
+dict_finger = {"littleFinger": 0, "ringFinger": 1, "middleFinger": 2, "indexFinger": 3, "thumb": 4}
+current_finger_state = dict_finger["littleFinger"]
 
 # Payload-Format: to get payload characters: https://docs.python.org/3/library/struct.html#format-characters
 # <B: count (B: unsigned char (uint8_t)) --> int (Python)
@@ -81,18 +82,23 @@ def parse_emg_frame(payload: bytes):
 
 def start_stop_recording():
     """Wird per Interrupt im MCU getriggert"""
-    global is_recording, all_measurements
+    global is_recording, all_measurements, current_finger_state
     is_recording = not is_recording
-    
     if is_recording:
-        print("Aufnahme gestartet...")
-        all_measurements = [] # Alte Daten löschen
-        Leds.set_led1_color(0, 1, 0) # Grüne LED für Aufnahme
+        if current_finger_state == dict_finger["littleFinger"]:
+                print("Aufnahme gestartet...")
+                all_measurements = [] # Alte Daten löschen
+        Leds.set_led1_color(0, 1, 0) # Grüne LED für Aufnahme      
     else:
-        print("Aufnahme gestoppt. Speichere Daten...")
-        Leds.set_led1_color(1, 0, 0) # Rote LED für Stopp
-        save_data()
-        Leds.set_led1_color(0, 0, 0) # LED aus
+        if current_finger_state == dict_finger["thumb"]:
+                print("Aufnahme gestoppt. Speichere Daten...")
+                Leds.set_led1_color(1, 0, 0) # Rote LED für Stopp
+                save_data()
+                Leds.set_led1_color(0, 0, 0) # LED aus
+                current_finger_state = dict_finger["littleFinger"]
+        else:
+            current_finger_state += 1 # wir gehen immer von kleinsten zum größten Finger
+            print(f"der derzeitige Finger ist: Finger {current_finger_state}")
 
 def save_data():
     """Speichert die gesammelten Daten in einer CSV-Datei."""
@@ -100,8 +106,11 @@ def save_data():
         print("Keine Daten zum Speichern vorhanden.")
         return
 
+    measurement_number = get_next_measurement_number()
     # Dateiname z.B. messung_finger0_1678886400.csv
-    filename = f"python/messdaten/messung_finger{current_finger_state}_{int(time.time())}.csv"
+    filename = f"python/messdaten/messung_{measurement_number}.csv"
+    with open("python/messdaten/last_measurement.txt", "w") as f:
+        f.write(str(measurement_number))
     
     try:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -112,6 +121,19 @@ def save_data():
         print(f"Daten erfolgreich in '{filename}' gespeichert.")
     except Exception as e:
         print(f"Fehler beim Speichern der Datei: {e}")
+
+def get_next_measurement_number():
+    """Liest die letzte Messnummer aus der Datei und erhöht sie um 1"""
+    try:
+        with open("python/messdaten/last_measurement.txt", "r") as f:
+            last_number = int(f.read().strip())
+    except FileNotFoundError:
+        last_number = 0
+    except ValueError:
+        print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
+        last_number = 0
+    return last_number + 1
+
 
 def user_loop():
     """Hauptschleife auf der MPU-Seite."""
@@ -124,8 +146,7 @@ def user_loop():
             if TIMING_DEBUG:    
                 end = time.time()
                 dt_get_emg_frame = end - start
-                print(f"Getting emg frame needed: {dt_get_emg_frame} s")
-            
+                print(f"Getting emg frame needed: {dt_get_emg_frame} s")               
             if frame:
                 if TIMING_DEBUG:
                     start = time.time()
