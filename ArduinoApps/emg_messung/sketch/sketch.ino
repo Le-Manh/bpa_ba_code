@@ -58,6 +58,7 @@ void readAllSensors(uint32_t t_ms);
 MsgPack::bin_t<uint8_t> get_emg_frame();
 void calibrateSensors();
 uint16_t crc16_update(uint16_t crc, uint8_t data);
+void hochzaehlenFinger();
 
 //interrupt und Feedback-LED
 const byte ledPin = 12;
