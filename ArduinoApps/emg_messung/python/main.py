@@ -3,6 +3,7 @@ import struct # dieses Modul kann C structs zu Python objekte konvertieren
 import csv
 from arduino.app_utils import App, Bridge, Leds
 
+DATA_DEBUG = True # used to rename output data to debug.csv instead of messung_[0-9]+.csv
 TIMING_DEBUG = False # used to measure the time to get one frame
 
 # Globale Liste zum Sammeln aller Messdaten
@@ -106,11 +107,14 @@ def save_data():
         print("Keine Daten zum Speichern vorhanden.")
         return
 
-    measurement_number = get_next_measurement_number()
-    # Dateiname z.B. messung_1.csv
-    filename = f"python/messdaten/messung_{measurement_number}.csv"
-    with open("python/messdaten/last_measurement.txt", "w") as f:
-        f.write(str(measurement_number))
+    if DATA_DEBUG:
+        filename = f"python/messdaten/debug.csv"
+    else:
+        measurement_number = get_next_measurement_number()
+        # Dateiname z.B. messung_1.csv
+        filename = f"python/messdaten/messung_{measurement_number}.csv"
+        with open("python/messdaten/last_measurement.txt", "w") as f:
+            f.write(str(measurement_number))
     
     try:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
