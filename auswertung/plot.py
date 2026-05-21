@@ -26,7 +26,7 @@ def draw_plot(df_data: pd.DataFrame) -> tuple:
     for i in range(len(value_types)):
         ax[i].plot(df_data[value_types[i]], label="Sensor " + str(i))
         ax[i].legend()
-        ax[i].set_title('Datensatz '+ value_types[n])
+        ax[i].set_title('Datensatz '+ value_types[i])
         ax[i].set_xlabel('Samples')
         ax[i].set_ylabel('EMG-Amplitude')
 
