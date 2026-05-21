@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-STRETCH_PLOT = True # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
+STRETCH_PLOT = False # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
 name_data = "debug.csv"
