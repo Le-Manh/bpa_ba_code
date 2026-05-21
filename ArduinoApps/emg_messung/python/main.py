@@ -68,7 +68,7 @@ def parse_emg_frame(payload: bytes):
                 current_time_ms += dt_ms
             
             all_measurements.append({
-                "finger": current_finger_state,
+                "Aktueller Finger": current_finger_state,
                 "timestamp_ms": current_time_ms,
                 "sensor_0": v1,
                 "sensor_1": v2,
