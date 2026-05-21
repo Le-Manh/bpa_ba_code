@@ -87,24 +87,34 @@ def start_stop_recording():
     is_recording = not is_recording
     if is_recording:
         if current_finger_state == dict_finger["littleFinger"]:
+            if DATA_DEBUG:
                 print("Aufnahme gestartet...")
-                all_measurements = [] # Alte Daten löschen
+            all_measurements = [] # Alte Daten löschen
         Leds.set_led1_color(0, 1, 0) # Grüne LED für Aufnahme      
     else:
         if current_finger_state == dict_finger["thumb"]:
+            if DATA_DEBUG:
                 print("Aufnahme gestoppt. Speichere Daten...")
-                Leds.set_led1_color(1, 0, 0) # Rote LED für Stopp
-                save_data()
-                Leds.set_led1_color(0, 0, 0) # LED aus
-                current_finger_state = dict_finger["littleFinger"]
+            Leds.set_led1_color(1, 0, 0) # Rote LED für Stopp
+            save_data()
+            Leds.set_led1_color(0, 0, 0) # LED aus
+            current_finger_state = dict_finger["littleFinger"]
         else:
             current_finger_state += 1 # wir gehen immer von kleinsten zum größten Finger
-            print(f"der derzeitige Finger ist: Finger {current_finger_state}")
+    if DATA_DEBUG:
+        print(f"der derzeitige Finger ist: Finger {current_finger_state}")        
 
 def save_data():
     """Speichert die gesammelten Daten in einer CSV-Datei."""
     if not all_measurements:
-        print("Keine Daten zum Speichern vorhanden.")
+        # Wenn beide LEDS am Board Rot sind wird signalisiert, dass keine Daten vorhadnen sind
+        Leds.set_led1_color(1,0,0)
+        Leds.set_led2_color(1,0,0)
+        if DATA_DEBUG:
+            print("Keine Daten zum Speichern vorhanden.")
+        time.sleep(1) #Schlaf eine Sekunde
+        Leds.set_led1_color(0,0,0) # Beide LEDS aus
+        Leds.set_led2_color(0,0,0)
         return
 
     if DATA_DEBUG:
