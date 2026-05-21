@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+STRETCH_PLOT = True # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
+
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
 name_data = "debug.csv"
 
@@ -20,7 +22,10 @@ def drawFingerTypeLabel(ax,df,n):
             ax.axvline(x = b, alpha = 0.5, color = "black", linestyle = "--") # Wenn ja, letzte Schwarze Linies
 
 def draw_plot(df_data: pd.DataFrame) -> tuple:
-    fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(20,10))
+    if STRETCH_PLOT:
+        fig, axes = plt.subplots(nrows=4, ncols=1,figsize=(50,10))
+    else:
+        fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(20,10))
 
     ax = axes.ravel()
     for i in range(len(value_types)):
@@ -38,5 +43,8 @@ for n in range(len(value_types)):
 
 
 #plt.tight_layout()
-fig.savefig(f"plots/plot_{name_data}.svg", format='svg')
+if STRETCH_PLOT:
+    fig.savefig(f"plots/plot_{name_data}_stretched.svg", format='svg')
+else:
+    fig.savefig(f"plots/plot_{name_data}.svg", format='svg')
 plt.close(fig)
