@@ -107,7 +107,7 @@ def save_data():
         return
 
     measurement_number = get_next_measurement_number()
-    # Dateiname z.B. messung_finger0_1678886400.csv
+    # Dateiname z.B. messung_1.csv
     filename = f"python/messdaten/messung_{measurement_number}.csv"
     with open("python/messdaten/last_measurement.txt", "w") as f:
         f.write(str(measurement_number))
