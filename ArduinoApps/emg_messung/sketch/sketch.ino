@@ -192,6 +192,12 @@ void readAllSensors(uint32_t t_ms) {
     ringBuf[head].t_ms = t_ms;
     for (int i = 0; i < NUM_SENSORS; i++) {
         int rawValue = analogRead(sensorPins[i]);
+
+        //Auslesen des Sensor 0 udn Normierung auf 3V bei einem 14 Bit ADC. Da Arduino Uno Q floats nciht richtig ausgibt, wird es auf 10000 normiert. 10000 entspricht also ein 1V
+        if(i == 0) {
+          uint16_t voltageValue = rawValue * (3/(pow(2.0,14.0))) * 10000;
+          Monitor.println(voltageValue);
+        }
         float filteredValue = myFilters[i].update(rawValue);
         ringBuf[head].values[i] = filteredValue - sensorOffsets[i];
     }
