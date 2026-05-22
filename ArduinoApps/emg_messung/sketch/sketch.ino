@@ -18,24 +18,33 @@
 // to activate Timing Debug change the value to 1 otherwise change it to 0
 #define TIMING_DEBUG 0
 
-#if TIMING_DEBUG == 1
-  //--- Timing DEBUG Variablen ---
-  volatile uint32_t processed_sample_count = 0;
-  uint32_t last_report_time = 0;
-#endif
+// --- activate Data Debug ---
+// This will print the value of DEBUG_SENSOR, this can be used to plot the data in Serial Plotter
+// The endline would be new line
+#define DATA_DEBUG 0 //to acttivate the 
+#define DEBUG_SENSOR 0 // possible Values are the Numeration of the sensor
+#define DEBUG_VALUE rawValue //possible Values are rawValue or filteredValue
 
 // --- Konfiguration ---
+// this build used 4 sensors
 #define NUM_SENSORS 4
-const uint16_t SAMPLE_INTERVAL_US = 2000; // 2000 µs -> 500 Hz
+// 2000 µs -> 500 Hz other possibility: 1000µs -> 1000 Hz
+#define SAMPLE_INTERVAL 2000 
 // Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt (geändert von 255 zu 512)
 #define RING_SIZE 512
+const uint16_t SAMPLE_INTERVAL_US = SAMPLE_INTERVAL; 
+
 
 // --- Sensor-Setup ---
 int sensorPins[] = {A0, A1, A2, A3};
 EMGFilters myFilters[NUM_SENSORS];
 float sensorOffsets[NUM_SENSORS];
+#if SAMPLE_INTERVAL == 2000
 SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
-NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ;
+#elif SAMPLE_INTERVAL == 1000
+SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
+#endif
+NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ; // This frequency is used to filter line voltages. If the line voltage use 60Hz it can be changed to: NOZCH_FREQ_60HU
 
 // --- Ringbuffer-Struktur ---
 struct Sample {
@@ -79,6 +88,12 @@ static void onSampleTimer(struct k_timer *timer_id) {
     (void)timer_id;
     atomic_inc(&timer_ticks); // Sicher den Zähler erhöhen
 }
+
+#if TIMING_DEBUG == 1
+  //--- Timing DEBUG Variablen ---
+  volatile uint32_t processed_sample_count = 0;
+  uint32_t last_report_time = 0;
+#endif
 
 // --- LED Matrix Feedback ---
 Arduino_LED_Matrix matrix;
@@ -161,8 +176,6 @@ void loop() {
         changeFinger = !changeFinger;
         }
       }
-
-    
     
       #if TIMING_DEBUG == 1   
       // Einmal pro Sekunde einen Bericht ausgeben nur im DEBUG wichtig
@@ -192,13 +205,17 @@ void readAllSensors(uint32_t t_ms) {
     ringBuf[head].t_ms = t_ms;
     for (int i = 0; i < NUM_SENSORS; i++) {
         int rawValue = analogRead(sensorPins[i]);
-
-        //Auslesen des Sensor 0 udn Normierung auf 3V bei einem 14 Bit ADC. Da Arduino Uno Q floats nciht richtig ausgibt, wird es auf 10000 normiert. 10000 entspricht also ein 1V
-        if(i == 0) {
-          uint16_t voltageValue = rawValue * (3/(pow(2.0,14.0))) * 10000;
+        float filteredValue = myFilters[i].update(rawValue);
+        
+        // Debug wenn die Daten in den Serial Monitor/Plotter ausgegeben werden soll
+        #if DATA_DEBUG == 1
+        //Auslesen des Sensor und Normierung auf 3V bei einem 14 Bit ADC. Da Arduino Uno Q floats nicht richtig ausgibt, wird es auf 10000 normiert. 10000 entspricht also ein 1V
+        if(i == DEBUG_SENSOR) {
+          int16_t voltageValue = DEBUG_VALUE * (3/(pow(2.0,14.0))) * 10000;
           Monitor.println(voltageValue);
         }
-        float filteredValue = myFilters[i].update(rawValue);
+        #endif
+
         ringBuf[head].values[i] = filteredValue - sensorOffsets[i];
     }
     head = next;
