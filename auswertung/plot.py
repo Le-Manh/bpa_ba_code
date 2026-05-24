@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 STRETCH_PLOT = False # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
+FFT_PLOT = True # This FFT requires a sampling rate of 500 Hz
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
 name_data = "debug.csv"
@@ -29,22 +30,43 @@ def draw_plot(df_data: pd.DataFrame) -> tuple:
 
     ax = axes.ravel()
     for i in range(len(value_types)):
-        ax[i].plot(df_data[value_types[i]], label="Sensor " + str(i))
-        ax[i].legend()
-        ax[i].set_title('Datensatz '+ value_types[i])
-        ax[i].set_xlabel('Samples')
-        ax[i].set_ylabel('EMG-Amplitude')
-
+        if FFT_PLOT:
+            ax[i].plot(df_data["freq"],df_data[value_types[i]].to_numpy().real, df_data["freq"], df_data[value_types[i]].to_numpy().imag, label="Sensor " + str(i))
+            ax[i].legend()
+            ax[i].set_title('Datensatz ' + value_types[i] + " FFT")
+            ax[i].set_xlabel('Frequencies')
+        else:
+            ax[i].plot(df_data[value_types[i]], label="Sensor " + str(i))
+            ax[i].legend()
+            ax[i].set_title('Datensatz '+ value_types[i])
+            ax[i].set_xlabel('Samples')
+            ax[i].set_ylabel('EMG-Amplitude')
     return fig,ax
 
+def fft_plot(df_data: pd.DataFrame) -> pd.DataFrame:
+    fft_dataframe = pd.DataFrame()
+    freq = np.fft.fftfreq(df_data["sensor_0"].size, d = 0.002)
+    fft_dataframe["freq"] = freq
+    for i in range(len(value_types)):
+        tmp_array = df_data[value_types[i]].to_numpy()
+        spectrum = np.fft.fft(tmp_array)
+        fft_dataframe[value_types[i]] = spectrum
+    return fft_dataframe
+
+if FFT_PLOT:
+    csv_data = fft_plot(csv_data)
+
 fig,ax = draw_plot(csv_data)
-for n in range(len(value_types)):
-    drawFingerTypeLabel(ax[n],csv_data,n)
+if not FFT_PLOT:
+    for n in range(len(value_types)):
+        drawFingerTypeLabel(ax[n],csv_data,n)
 
 
 #plt.tight_layout()
 if STRETCH_PLOT:
     fig.savefig(f"plots/plot_{name_data}_stretched.svg", format='svg')
+elif FFT_PLOT:
+    fig.savefig(f"plots/plot_{name_data}_fft.svg", format='svg')
 else:
     fig.savefig(f"plots/plot_{name_data}.svg", format='svg')
 plt.close(fig)
