@@ -24,6 +24,8 @@
 #define DATA_DEBUG 0 //to acttivate the 
 #define DEBUG_SENSOR 0 // possible Values are the Numeration of the sensor
 #define DEBUG_VALUE rawValue //possible Values are rawValue or filteredValue
+// This can be used to write the rawValue into the Buffer
+#define RAWDATA_INTO_BUFFER 1
 
 // --- Konfiguration ---
 // this build used 4 sensors
@@ -50,6 +52,10 @@ NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ; // This frequency is used to filter l
 struct Sample {
     float values[NUM_SENSORS]; // Array für die 4 Sensorwerte
     uint32_t t_ms;             // Zeitstempel in Millisekunden
+
+    #if RAWDATA_INTO_BUFFER == 1
+    int raw_values[NUM_SENSORS];
+    #endif
 };
 
 volatile Sample ringBuf[RING_SIZE];
@@ -217,6 +223,9 @@ void readAllSensors(uint32_t t_ms) {
         #endif
 
         ringBuf[head].values[i] = filteredValue - sensorOffsets[i];
+        #if RAWDATA_INTO_BUFFER == 1
+        ringBuf[head].raw_values[i] = rawValue;
+        #endif
     }
     head = next;
 }
@@ -237,6 +246,9 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     
     if (count == 0) return out; // Keine Werte vorhanden
 
+    #if RAWDATA_INTO_BUFFER == 1
+    static uint8_t frame[2 + 4 + RING_SIZE * (1 + sizeof(float) * sizeof(int) * NUM_SENSORS) + 2];
+    #else
     // frame wird als Buffer genutzt, worst case Größe eines Frames:
     static uint8_t frame[2 + 4 + RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) + 2]; 
     /* Die magic Numbers setzen sich zusammen aus:
@@ -245,6 +257,7 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
       RING_SIZE * (1 + sizeof(float) * NUM_SENSORS) Maximale Größe aller Daten im Puffer, die Magic Number hier ist die Göße eines Bytes ; floats sind auf dem Arduino 4 Byte groß
       2: Größe der CRC Prüfsumme (uint16_t) -–> 2 Byte
     */
+    #endif
     size_t idx = 0;
     uint16_t crc = 0;
 
@@ -275,7 +288,12 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
         // Jetzt mit der sicheren, lokalen Kopie arbeiten
         memcpy(&frame[idx], local_sample.values, sizeof(float) * NUM_SENSORS); // Kopieren der Werte in den Frame
         idx += sizeof(float) * NUM_SENSORS; // Verschieben des Index um die Größe der Messwerte
-        
+
+        #if RAWDATA_INTO_BUFFER == 1
+        memcpy(&frame[idx], local_sample.raw_values, sizeof(int)*NUM_SENSORS);
+        idx += sizeof(int) * NUM_SENSORS;
+        #endif
+
         current_read_idx = (current_read_idx + 1) % RING_SIZE;
     }
 
