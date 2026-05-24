@@ -108,6 +108,17 @@ int currentFinger;
 uint8_t* matrix_feedback[] = {littleFinger_Frame, ringFinger_Frame, middleFinger_Frame, indexFinger_Frame, thumb_Frame};
 bool changeFinger = false;
 
+// define a function to expose this to the MPU
+// So the MPU knows, if it has to decode more data
+bool more_values_in_buffer(){
+#if RAWDATA_INTO_BUFFER == 1
+  return true;
+#else
+  return false;
+#endif
+}
+
+
 void setup() {
     // start Matrix and feedback that MCU is running
     matrix.begin();
@@ -131,6 +142,7 @@ void setup() {
     // Bridge initialisieren und Funktion bereitstellen
     Bridge.begin(); //Bridge is communicating with baud 115200
     Bridge.provide("get_emg_frame", get_emg_frame);
+    Bridge.provide("more_values_in_buffer", more_values_in_buffer);
 
     // Zephyr Kernel Timer für 500 Hz starten
     k_timer_init(&sampleTimer, onSampleTimer, nullptr); // init und docs hier: https://docs.zephyrproject.org/latest/kernel/services/timing/timers.html#defining-a-timer

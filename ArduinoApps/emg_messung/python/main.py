@@ -12,13 +12,17 @@ is_recording = False
 dict_finger = {"littleFinger": 0, "ringFinger": 1, "middleFinger": 2, "indexFinger": 3, "thumb": 4}
 current_finger_state = dict_finger["littleFinger"]
 
+RAW_DATA_IN_BUFFER = Bridge.call("more_values_in_buffer")
 # Payload-Format: to get payload characters: https://docs.python.org/3/library/struct.html#format-characters
 # <B: count (B: unsigned char (uint8_t)) --> int (Python)
 # <I: t0_ms (I: unsigned int (uint32_t)) --> int (Python)
 # [ <B: dt_ms, <f: val1, <f: val2, <f: val3, <f: val4 ] x count (f steht für float (4 Byte)) --> float (python)
 # <H: crc16 (H: unsigned short (uint16_t)) --> int (Python)
 # Das '<' bedeutet Little-Endian Byte Order.
-SAMPLE_FORMAT = '<Bffff' # Format für ein Sample: dt_ms und 4 floats
+if RAW_DATA_IN_BUFFER:
+    SAMPLE_FORMAT = '<Bffffffff' # double the amount of values, rawData is behind the normal values
+else:
+    SAMPLE_FORMAT = '<Bffff' # Format für ein Sample: dt_ms und 4 floats
 SAMPLE_SIZE = struct.calcsize(SAMPLE_FORMAT)
 
 def crc16_update(crc, data):
@@ -63,18 +67,35 @@ def parse_emg_frame(payload: bytes):
         current_time_ms = t0_ms
         
         for i in range(count):
-            dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
+            if RAW_DATA_IN_BUFFER:
+                dt_ms, v1, v2, v3, v4, raw_v1, raw_v2, raw_v3, raw_v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
+            else:
+                dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
             if i > 0:
                 current_time_ms += dt_ms
             
-            all_measurements.append({
+            if RAW_DATA_IN_BUFFER:
+                all_measurements.append({
                 "Aktueller Finger": current_finger_state,
                 "timestamp_ms": current_time_ms,
                 "sensor_0": v1,
                 "sensor_1": v2,
                 "sensor_2": v3,
-                "sensor_3": v4
+                "sensor_3": v4,
+                "raw_sensor_0": raw_v1,
+                "raw_sensor_1": raw_v2,
+                "raw_sensor_2": raw_v3,
+                "raw_sensor_3": raw_v4,
             })
+            else:
+                all_measurements.append({
+                    "Aktueller Finger": current_finger_state,
+                    "timestamp_ms": current_time_ms,
+                    "sensor_0": v1,
+                    "sensor_1": v2,
+                    "sensor_2": v3,
+                    "sensor_3": v4
+                })
             offset += SAMPLE_SIZE
 
     except struct.error as e:
