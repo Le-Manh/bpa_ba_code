@@ -16,14 +16,17 @@
 
 // --- activate Timing Debug ---
 // to activate Timing Debug change the value to 1 otherwise change it to 0
-#define TIMING_DEBUG 0
+#define TIMING_DEBUG 1
 
 // --- activate Data Debug ---
 // This will print the value of DEBUG_SENSOR, this can be used to plot the data in Serial Plotter
 // The endline would be new line
-#define DATA_DEBUG 0 //to acttivate the 
-#define DEBUG_SENSOR 0 // possible Values are the Numeration of the sensor
-#define DEBUG_VALUE rawValue //possible Values are rawValue or filteredValue
+//to activate the Data Debug. Possible Values are 0 or 1
+#define DATA_DEBUG 0
+// possible Values are the Numeration of the sensor
+#define DEBUG_SENSOR 0
+//possible Values are rawValue or filteredValue, this will only work if DATA_DEBUG is 1
+#define DEBUG_VALUE rawValue
 // This can be used to write the rawValue into the Buffer
 #define RAWDATA_INTO_BUFFER 1
 
@@ -32,8 +35,8 @@
 #define NUM_SENSORS 4
 // 2000 µs -> 500 Hz other possibility: 1000µs -> 1000 Hz
 #define SAMPLE_INTERVAL 2000 
-// Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt (geändert von 255 zu 512)
-#define RING_SIZE 512
+// Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt (geändert von 255 zu 512), bei RAWDATA_INTO_BUFFER == 1 sollte der Ring_Size auf 800 gesetzt werden. 512 führt zum Überlauf und 1024 ist zu viel
+#define RING_SIZE 800
 const uint16_t SAMPLE_INTERVAL_US = SAMPLE_INTERVAL; 
 
 
@@ -126,6 +129,11 @@ void setup() {
     matrix.draw(Hi_Frame); 
     currentFinger = littleFinger;
 
+    // Bridge initialisieren und Funktion bereitstellen
+    Bridge.begin(); //Bridge is communicating with baud 115200
+    Bridge.provide("get_emg_frame", get_emg_frame);
+    Bridge.provide("more_values_in_buffer", more_values_in_buffer);
+  
     Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
     for (int i = 0; i < NUM_SENSORS; i++) {
@@ -138,11 +146,6 @@ void setup() {
     Monitor.println("Kalibrierung startet...");
     calibrateSensors();
     Monitor.println("Kalibrierung abgeschlossen.");
-
-    // Bridge initialisieren und Funktion bereitstellen
-    Bridge.begin(); //Bridge is communicating with baud 115200
-    Bridge.provide("get_emg_frame", get_emg_frame);
-    Bridge.provide("more_values_in_buffer", more_values_in_buffer);
 
     // Zephyr Kernel Timer für 500 Hz starten
     k_timer_init(&sampleTimer, onSampleTimer, nullptr); // init und docs hier: https://docs.zephyrproject.org/latest/kernel/services/timing/timers.html#defining-a-timer
