@@ -20,7 +20,7 @@ RAW_DATA_IN_BUFFER = Bridge.call("more_values_in_buffer")
 # <H: crc16 (H: unsigned short (uint16_t)) --> int (Python)
 # Das '<' bedeutet Little-Endian Byte Order.
 if RAW_DATA_IN_BUFFER:
-    SAMPLE_FORMAT = '<Bffffffff' # double the amount of values, rawData is behind the normal values
+    SAMPLE_FORMAT = '<Bffffiiii' # double the amount of values, rawData is behind the normal values
 else:
     SAMPLE_FORMAT = '<Bffff' # Format für ein Sample: dt_ms und 4 floats
 SAMPLE_SIZE = struct.calcsize(SAMPLE_FORMAT)
