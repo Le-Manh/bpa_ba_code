@@ -16,7 +16,7 @@
 
 // --- activate Timing Debug ---
 // to activate Timing Debug change the value to 1 otherwise change it to 0
-#define TIMING_DEBUG 1
+#define TIMING_DEBUG 0
 
 // --- activate Data Debug ---
 // This will print the value of DEBUG_SENSOR, this can be used to plot the data in Serial Plotter
@@ -28,7 +28,7 @@
 //possible Values are rawValue or filteredValue, this will only work if DATA_DEBUG is 1
 #define DEBUG_VALUE rawValue
 // This can be used to write the rawValue into the Buffer
-#define RAWDATA_INTO_BUFFER 1
+#define RAWDATA_INTO_BUFFER 0
 
 // --- Konfiguration ---
 // this build used 4 sensors
@@ -36,7 +36,7 @@
 // 2000 µs -> 500 Hz other possibility: 1000µs -> 1000 Hz
 #define SAMPLE_INTERVAL 2000 
 // Ringgröße auf ein das nächsthöhere der Potenz von 2 gesetzt (geändert von 255 zu 512), bei RAWDATA_INTO_BUFFER == 1 sollte der Ring_Size auf 800 gesetzt werden. 512 führt zum Überlauf und 1024 ist zu viel
-#define RING_SIZE 800
+#define RING_SIZE 512
 const uint16_t SAMPLE_INTERVAL_US = SAMPLE_INTERVAL; 
 
 
