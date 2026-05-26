@@ -85,11 +85,20 @@ volatile byte ledState = LOW;
 volatile bool messungState = false;
 volatile bool start_stop_mpu = false;
 //Interrupt (ISR)
-void button_interrupt()
+void button_interrupt_messung()
 {
   ledState = !ledState;
   messungState = !messungState;
   start_stop_mpu = !start_stop_mpu;
+}
+
+// Interrupt Hand Wechsel
+const byte fingerWechselPin = 6;
+volatile bool rightHand = true;
+// ISR
+void button_interrupt_handswitch()
+{
+  rightHand = !rightHand;
 }
 
 // Timer-Callback wird bei jedem Intervall aufgerufen
@@ -121,6 +130,10 @@ bool more_values_in_buffer(){
 #endif
 }
 
+// expose rightHand to MPU
+bool handState(){
+  return rightHand;
+}
 
 void setup() {
     // start Matrix and feedback that MCU is running
@@ -133,6 +146,7 @@ void setup() {
     Bridge.begin(); //Bridge is communicating with baud 115200
     Bridge.provide("get_emg_frame", get_emg_frame);
     Bridge.provide("more_values_in_buffer", more_values_in_buffer);
+    Bridge.provide("handState", handState);
   
     Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
@@ -156,7 +170,9 @@ void setup() {
 
     //Interrupt-Setup
     pinMode(interruptPin,INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(interruptPin),button_interrupt,FALLING); //attachInterrupt(pin, ISR, mode) 
+    attachInterrupt(digitalPinToInterrupt(interruptPin),button_interrupt_messung,FALLING); //attachInterrupt(pin, ISR, mode) 
+    pinMode(fingerWechselPin, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(fingerWechselPin),button_interrupt_handswitch, FALLING);
 
     //Setup beendet:
     matrix.draw(matrix_feedback[currentFinger]);

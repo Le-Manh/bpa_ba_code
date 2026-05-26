@@ -138,12 +138,18 @@ def save_data():
         Leds.set_led2_color(0,0,0)
         return
 
+    handState = Bridge.call("handState")
+    if handState:
+        hand = "r"
+    else:
+        hand = "l"
+    
     if DATA_DEBUG:
-        filename = f"python/messdaten/debug.csv"
+        filename = f"python/messdaten/debug_{hand}.csv"
     else:
         measurement_number = get_next_measurement_number()
         # Dateiname z.B. messung_1.csv
-        filename = f"python/messdaten/messung_{measurement_number}.csv"
+        filename = f"python/messdaten/messung_{hand}_{measurement_number}.csv"
         with open("python/messdaten/last_measurement.txt", "w") as f:
             f.write(str(measurement_number))
     
