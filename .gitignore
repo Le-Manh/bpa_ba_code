@@ -6,6 +6,7 @@
 .profile
 .sudo_as_admin_successful
 .lesshst
+.local/
 lost+found/
 
 ## ignore files of the Arduino IDE. This was used to compile without the Arduino uno Q
