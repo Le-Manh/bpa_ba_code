@@ -146,7 +146,6 @@ void setup() {
     Bridge.begin(); //Bridge is communicating with baud 115200
     Bridge.provide("get_emg_frame", get_emg_frame);
     Bridge.provide("more_values_in_buffer", more_values_in_buffer);
-    Bridge.provide("handState", handState);
   
     Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
@@ -202,7 +201,7 @@ void loop() {
       if (start_stop_mpu) {
         //Die Aufnahme der Messungen wird für jeden Finger einmal getriggert, um die Kommunikation zu verringern
         noInterrupts();
-        Bridge.notify("start_stop");
+        Bridge.notify("start_stop", rightHand);
         start_stop_mpu = !start_stop_mpu;
         interrupts();
         // changes Finger and Matrix only on the 2nd push of the interrupt

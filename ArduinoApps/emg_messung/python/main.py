@@ -12,6 +12,8 @@ is_recording = False
 dict_finger = {"littleFinger": 0, "ringFinger": 1, "middleFinger": 2, "indexFinger": 3, "thumb": 4}
 current_finger_state = dict_finger["littleFinger"]
 
+handState = True # soll verändert werden wenn die linke Hand gemessen wird
+
 RAW_DATA_IN_BUFFER = Bridge.call("more_values_in_buffer")
 # Payload-Format: to get payload characters: https://docs.python.org/3/library/struct.html#format-characters
 # <B: count (B: unsigned char (uint8_t)) --> int (Python)
@@ -102,9 +104,14 @@ def parse_emg_frame(payload: bytes):
         print(f"Fehler beim Entpacken der Daten: {e}")
 
 
-def start_stop_recording():
+def start_stop_recording(whichHand: bool):
     """Wird per Interrupt im MCU getriggert"""
-    global is_recording, all_measurements, current_finger_state
+    global is_recording, all_measurements, current_finger_state, handState
+    handState = whichHand
+    if handState:
+        Leds.set_led2_color(0,0,0)
+    else:
+        Leds.set_led2_color(0,0,1)
     is_recording = not is_recording
     if is_recording:
         if current_finger_state == dict_finger["littleFinger"]:
@@ -138,7 +145,6 @@ def save_data():
         Leds.set_led2_color(0,0,0)
         return
 
-    handState = Bridge.call("handState")
     if handState:
         hand = "r"
     else:
