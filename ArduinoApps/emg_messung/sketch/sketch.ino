@@ -130,11 +130,6 @@ bool more_values_in_buffer(){
 #endif
 }
 
-// expose rightHand to MPU
-bool handState(){
-  return rightHand;
-}
-
 void setup() {
     // start Matrix and feedback that MCU is running
     matrix.begin();
