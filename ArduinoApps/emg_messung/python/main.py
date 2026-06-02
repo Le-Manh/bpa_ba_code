@@ -4,7 +4,7 @@ import struct
 import os
 from arduino.app_utils import App, Bridge, Leds
 
-DATA_DEBUG = True # used to rename output data to debug.csv instead of messung_[rl]_[0-9]+.csv
+DATA_DEBUG = False # used to rename output data to debug.csv instead of messung_[rl]_[0-9]+.csv
 TIMING_DEBUG = False # used to measure the time to get one frame
 
 is_recording = False
