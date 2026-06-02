@@ -84,9 +84,19 @@ const byte interruptPin = 2;
 volatile byte ledState = LOW;
 volatile bool messungState = false;
 volatile bool start_stop_mpu = false;
+
+// prevent debounce
+volatile uint32_t last_mess_btn_us = 0;
+volatile uint32_t last_hand_btn_us = 0;
+
+const uint32_t DEBOUNCE_US = 30000; // 30 ms
+
 //Interrupt (ISR)
 void button_interrupt_messung()
 {
+  uint32_t now = micros();
+  if (now - last_mess_btn_us < DEBOUNCE_US) return;
+  last_mess_btn_us = now;
   ledState = !ledState;
   messungState = !messungState;
   start_stop_mpu = !start_stop_mpu;
@@ -97,7 +107,10 @@ const byte fingerWechselPin = 6;
 volatile bool rightHand = true;
 // ISR
 void button_interrupt_handswitch()
-{
+{ 
+  uint32_t now = micros();
+  if (now - last_hand_btn_us < DEBOUNCE_US) return;
+  last_hand_btn_us = now;
   rightHand = !rightHand;
 }
 
