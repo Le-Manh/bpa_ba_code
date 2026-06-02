@@ -39,7 +39,6 @@
 #define RING_SIZE 512
 const uint16_t SAMPLE_INTERVAL_US = SAMPLE_INTERVAL; 
 
-
 // --- Sensor-Setup ---
 int sensorPins[] = {A0, A1, A2, A3};
 EMGFilters myFilters[NUM_SENSORS];
@@ -52,16 +51,17 @@ SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
 NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ; // This frequency is used to filter line voltages. If the line voltage use 60Hz it can be changed to: NOZCH_FREQ_60HU
 
 // --- Ringbuffer-Struktur ---
+#define MAX_SAMPLES_PER_FRAME 128
 struct Sample {
     float values[NUM_SENSORS]; // Array für die 4 Sensorwerte
     uint32_t t_ms;             // Zeitstempel in Millisekunden
 
     #if RAWDATA_INTO_BUFFER == 1
-    int raw_values[NUM_SENSORS];
+    uint16_t raw_values[NUM_SENSORS];
     #endif
 };
 
-volatile Sample ringBuf[RING_SIZE];
+Sample ringBuf[RING_SIZE];
 volatile uint16_t head = 0;       // Nächste Schreibposition
 volatile uint16_t last_sent = 0;  // Position nach dem letzten gesendeten Sample
 volatile bool overflowed = false; // Flag für Pufferüberlauf
@@ -186,7 +186,8 @@ void loop() {
         while (pending_samples > 0) {
             sample_time_us += SAMPLE_INTERVAL_US;
             if (messungState) {
-              readAllSensors(sample_time_us / (int) sampleRate ); // Zeit in ms übergeben
+              unint32_t t_ms = k_uptime_get_32();
+              readAllSensors(t_ms); // Zeit in ms übergeben
             }
             pending_samples--;
             #if TIMING_DEBUG == 1
@@ -235,7 +236,7 @@ void readAllSensors(uint32_t t_ms) {
 
     ringBuf[head].t_ms = t_ms;
     for (int i = 0; i < NUM_SENSORS; i++) {
-        int rawValue = analogRead(sensorPins[i]);
+        unint16_t rawValue = analogRead(sensorPins[i]);
         float filteredValue = myFilters[i].update(rawValue);
         
         // Debug wenn die Daten in den Serial Monitor/Plotter ausgegeben werden soll
@@ -286,7 +287,7 @@ MsgPack::bin_t<uint8_t> get_emg_frame() {
     size_t idx = 0;
     uint16_t crc = 0;
 
-    uint16_t frame_count = count; // Erhöhung des frames von 8-Bit auf 16 um den höheren Buffer abzufangen
+    uint16_t frame_count = min<uint16_t>(count,MAX_SAMPLES_PER_FRAME); // Erhöhung des frames von 8-Bit auf 16 um den höheren Buffer abzufangen
     memcpy(&frame[idx], &frame_count, sizeof(frame_count));
 	idx += sizeof(frame_count);
 
@@ -355,8 +356,8 @@ void calibrateSensors() {
             sums[j] += myFilters[j].update(analogRead(sensorPins[j]));
         }
         unsigned long calibElapsedTime = micros() - calibLoopStart;
-        if(calibElapsedTime < sampleRate) { // Ziel: sampleRate pro Sample
-          delayMicroseconds(sampleRate - calibElapsedTime); // um die Abtastrate konstant zu halten
+        if(calibElapsedTime < SAMPLE_INTERVAL_US) { // Ziel: sampleRate pro Sample
+          delayMicroseconds(SAMPLE_INTERVAL_US - calibElapsedTime); // um die Abtastrate konstant zu halten
         }
     }
 
