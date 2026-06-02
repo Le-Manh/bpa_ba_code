@@ -9,6 +9,9 @@
 .local/
 lost+found/
 
+## ignore Arduino libraries
+Arduino/
+
 ## ignore files of the Arduino IDE. This was used to compile without the Arduino uno Q
 ArduinoApps/emg_messung/sketch/data/
 
