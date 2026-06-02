@@ -6,6 +6,7 @@ from arduino.app_utils import App, Bridge, Leds
 is_recording = False
 csvfile = None
 writer = None
+measurement_number = -1 #if it's -1 sth is wrong
 
 dict_finger = {"littleFinger": 0, "ringFinger": 1, "middleFinger": 2, "indexFinger": 3, "thumb": 4}
 current_finger_state = dict_finger["littleFinger"]
@@ -25,10 +26,31 @@ def crc16_update(crc, data):
         crc = (crc >> 1) ^ 0xA001 if (crc & 1) else (crc >> 1)
     return crc
 
+
+def get_next_available_filename(hand: str):
+    n = get_next_measurement_number()
+    while True:
+        filename = f"python/messdaten/messung_{hand}_{n}.csv"
+        if not os.path.exists(filename):
+            return filename, n
+        n += 1
+
+def get_next_measurement_number():
+    """Liest die letzte Messnummer aus der Datei und erhöht sie um 1"""
+    try:
+        with open("python/messdaten/last_measurement.txt", "r") as f:
+            last_number = int(f.read().strip())
+    except FileNotFoundError:
+        last_number = 0
+    except ValueError:
+        print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
+        last_number = 0
+    return last_number + 1
+
 def open_new_csv():
-    global csvfile, writer
+    global csvfile, writer, measurement_number
     hand = "r" if handState else "l"
-    filename = f"python/messdaten/live_{hand}.csv"
+    filename, measurement_number = get_next_available_filename(hand)
 
     csvfile = open(filename, 'w', newline='', encoding='utf-8')
     if RAW_DATA_IN_BUFFER:
@@ -43,10 +65,14 @@ def open_new_csv():
     print(f"Schreibe live nach {filename}")
 
 def close_csv():
-    global csvfile, writer
+    global csvfile, writer, measurement_number
     if csvfile:
         csvfile.flush()
         csvfile.close()
+
+         with open("python/messdaten/last_measurement.txt", "w") as f:
+             f.write(str(measurement_number))
+
     csvfile = None
     writer = None
 
@@ -112,6 +138,11 @@ def parse_emg_frame(payload: bytes):
 def start_stop_recording(whichHand: bool):
     global is_recording, current_finger_state, handState
     handState = whichHand
+    if handState: # LED Feedback zur hand. blue is left and nothing is right
+        Leds.set_led2_color(0,0,0)
+    else:
+        Leds.set_led2_color(0,0,1)
+
     is_recording = not is_recording
 
     if is_recording:

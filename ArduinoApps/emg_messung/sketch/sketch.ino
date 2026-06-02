@@ -186,7 +186,7 @@ void loop() {
         while (pending_samples > 0) {
             sample_time_us += SAMPLE_INTERVAL_US;
             if (messungState) {
-              unint32_t t_ms = k_uptime_get_32();
+              uint32_t t_ms = k_uptime_get_32();
               readAllSensors(t_ms); // Zeit in ms übergeben
             }
             pending_samples--;
@@ -236,7 +236,7 @@ void readAllSensors(uint32_t t_ms) {
 
     ringBuf[head].t_ms = t_ms;
     for (int i = 0; i < NUM_SENSORS; i++) {
-        unint16_t rawValue = analogRead(sensorPins[i]);
+        uint16_t rawValue = analogRead(sensorPins[i]);
         float filteredValue = myFilters[i].update(rawValue);
         
         // Debug wenn die Daten in den Serial Monitor/Plotter ausgegeben werden soll
