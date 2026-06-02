@@ -1,6 +1,7 @@
 import csv
 import time
 import struct
+import os
 from arduino.app_utils import App, Bridge, Leds
 
 is_recording = False
@@ -70,8 +71,8 @@ def close_csv():
         csvfile.flush()
         csvfile.close()
 
-         with open("python/messdaten/last_measurement.txt", "w") as f:
-             f.write(str(measurement_number))
+        with open("python/messdaten/last_measurement.txt", "w") as f:
+            f.write(str(measurement_number))
 
     csvfile = None
     writer = None
