@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 STRETCH_PLOT = False # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
-FFT_PLOT = True # This FFT requires a sampling rate of 500 Hz
+FFT_PLOT = False # This FFT requires a sampling rate of 500 Hz
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
-name_data = "debug.csv"
+name_data = "debug_r.csv"
 
 csv_data = pd.read_csv(path_messdaten+name_data)
 
@@ -31,7 +31,7 @@ def draw_plot(df_data: pd.DataFrame) -> tuple:
     ax = axes.ravel()
     for i in range(len(value_types)):
         if FFT_PLOT:
-            ax[i].plot(df_data["freq"],df_data[value_types[i]].to_numpy().real, df_data["freq"], df_data[value_types[i]].to_numpy().imag, label="Sensor " + str(i))
+            ax[i].plot(df_data["freq"],df_data[value_types[i]].to_numpy(), label="Sensor " + str(i))
             ax[i].legend()
             ax[i].set_title('Datensatz ' + value_types[i] + " FFT")
             ax[i].set_xlabel('Frequencies')
@@ -50,7 +50,7 @@ def fft_plot(df_data: pd.DataFrame) -> pd.DataFrame:
     for i in range(len(value_types)):
         tmp_array = df_data[value_types[i]].to_numpy()
         spectrum = np.fft.fft(tmp_array)
-        fft_dataframe[value_types[i]] = spectrum
+        fft_dataframe[value_types[i]] = np.absolute(spectrum)
     return fft_dataframe
 
 if FFT_PLOT:
