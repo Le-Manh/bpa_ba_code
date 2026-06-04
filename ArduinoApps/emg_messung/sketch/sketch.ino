@@ -181,6 +181,8 @@ void setup() {
     pinMode(fingerWechselPin, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(fingerWechselPin),button_interrupt_handswitch, FALLING);
 
+    analogReadResolution(14);
+
     //Setup beendet:
     matrix.draw(matrix_feedback[currentFinger]);
 }
