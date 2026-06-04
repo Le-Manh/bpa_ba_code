@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 STRETCH_PLOT = False # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
 FFT_PLOT = False # This FFT requires a sampling rate of 500 Hz
+SCALE_DATA_BACK = True
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
 name_data = "debug_r.csv"
@@ -12,6 +13,11 @@ csv_data = pd.read_csv(path_messdaten+name_data)
 
 fingerTypes = ["kleiner Finger","Ringfinger","Mittelfinger","Zeigefinger","Daumen"]
 value_types = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"] # Columns die geplottet werden sollen, sensor ist dabei der Key der Werte aus den Sensoren
+
+def scale_data_back(progressed_data):
+    '''Scale the data back to mV from the count it had'''
+    raw_data = ((progressed_data*3.3) / (2**14 -1))
+    return raw_data
 
 def drawFingerTypeLabel(ax,df,n):
     for i in range(len(fingerTypes)): # For-Schleife über die Finger-Indizes 0...4
@@ -34,13 +40,16 @@ def draw_plot(df_data: pd.DataFrame) -> tuple:
             ax[i].plot(df_data["freq"],df_data[value_types[i]].to_numpy(), label="Sensor " + str(i))
             ax[i].legend()
             ax[i].set_title('Datensatz ' + value_types[i] + " FFT")
-            ax[i].set_xlabel('Frequencies')
+            ax[i].set_xlabel('Frequencies in Hz')
         else:
             ax[i].plot(df_data[value_types[i]], label="Sensor " + str(i))
             ax[i].legend()
             ax[i].set_title('Datensatz '+ value_types[i])
             ax[i].set_xlabel('Samples')
-            ax[i].set_ylabel('EMG-Amplitude')
+            if SCALE_DATA_BACK:
+                ax[i].set_ylabel('EMG-Amplitude in mV')
+            else:
+                ax[i].set_ylabel('EMG-Amplitude')
     return fig,ax
 
 def fft_plot(df_data: pd.DataFrame) -> pd.DataFrame:
@@ -52,6 +61,9 @@ def fft_plot(df_data: pd.DataFrame) -> pd.DataFrame:
         spectrum = np.fft.fft(tmp_array)
         fft_dataframe[value_types[i]] = np.absolute(spectrum)
     return fft_dataframe
+
+if SCALE_DATA_BACK:
+    csv_data.iloc[:,2:] = csv_data.iloc[:,2:].map(scale_data_back)
 
 if FFT_PLOT:
     csv_data = fft_plot(csv_data)
