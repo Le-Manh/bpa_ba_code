@@ -16,7 +16,7 @@ value_types = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"] # Columns die gep
 
 def scale_data_back(progressed_data):
     '''Scale the data back to mV from the count it had'''
-    raw_data = ((progressed_data*3.3) / (2**14 -1))
+    raw_data = ((progressed_data*3.3) / (2**14))
     return raw_data
 
 def drawFingerTypeLabel(ax,df,n):
