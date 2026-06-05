@@ -1,3 +1,6 @@
 [submodule "medizininformatik"]
 	path = medizininformatik
 	url = https://git.i.hawk.de/alexandra.kuehnapfel/medizininformatik
+[submodule "ArduinoApps/diy-ecg-uno-Q"]
+	path = ArduinoApps/diy-ecg-uno-Q
+	url = https://github.com/diy-ecg/diy-ecg-uno-Q.git
