@@ -77,9 +77,9 @@ if not FFT_PLOT:
 
 #plt.tight_layout()
 if STRETCH_PLOT:
-    fig.savefig(f"plots/plot_{name_data}_stretched.svg", format='svg')
+    fig.savefig(f"plots/plot_{name_data}_stretched.svg", format='svg', transparent=True)
 elif FFT_PLOT:
-    fig.savefig(f"plots/plot_{name_data}_fft.svg", format='svg')
+    fig.savefig(f"plots/plot_{name_data}_fft.svg", format='svg', transparent=True)
 else:
-    fig.savefig(f"plots/plot_{name_data}.svg", format='svg')
+    fig.savefig(f"plots/plot_{name_data}.svg", format='svg', transparent=True)
 plt.close(fig)
