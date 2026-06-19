@@ -16,8 +16,12 @@ fingerTypes = ["kleiner Finger","Ringfinger","Mittelfinger","Zeigefinger","Daume
 value_types = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"] # Columns die geplottet werden sollen, sensor ist dabei der Key der Werte aus den Sensoren
 
 def scale_data_back(progressed_data):
-    '''Scale the data back to mV from the count it had'''
-    raw_data = ((progressed_data*3.3) / (2**14))
+    '''Scale the data back to µV from the count it had
+        the count is multiplied by 3.3 because that is the reference voltage of the 14 Bit ADC
+        bc my sensors scale from -1.5 mV - 1.5 mV to 0 V - 3 V the Gain is 1000 which is divided by another 1000 from the calculation from V to mV.
+        The result is that the calculation is only multiplied by one 1000 to get µV
+    '''
+    raw_data = ((progressed_data*3.3) / (2**14)) * 1000
     return raw_data
 
 def drawFingerTypeLabel(ax,df,n):
@@ -48,7 +52,7 @@ def draw_plot(df_data: pd.DataFrame) -> tuple:
             ax[i].set_title('Datensatz '+ value_types[i])
             ax[i].set_xlabel('Samples')
             if SCALE_DATA_BACK:
-                ax[i].set_ylabel('EMG-Amplitude in mV')
+                ax[i].set_ylabel('EMG-Amplitude in µV')
             else:
                 ax[i].set_ylabel('EMG-Amplitude')
     return fig,ax
