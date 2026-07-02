@@ -73,20 +73,19 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,) wave length
         p = rms / (np.sum(rms) + eps)                                 # (4,) normiertes Amplituden-/Energieverhältnis
 
-        ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar
+        ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar # Betrachtungvon Flexior und Extensior (Sensor 2 und Rest)
 
-        f = np.concatenate([rms, wl, p, [ratio_ext_flex]], axis=0)
+        f = np.concatenate([rms, wl, p, [ratio_ext_flex]], axis=0) # Alle Messwerte in einem Array zusammen concatenaten
         feats.append(f)
 
     if not feats:
-        return np.zeros((0, 13), dtype=np.float32)
+        return np.zeros((0, 13), dtype=np.float32) # falls keine Features 0 hinzufügen
 
-    return np.vstack(feats).astype(np.float32)
+    return np.vstack(feats).astype(np.float32)  # rebuilded Array from a list as a vertical Array (1,N)
 
 def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
                         win: int = 100, step: int = 50) -> pd.DataFrame:
     """
-
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
     :param trim: Wie viel vor und hinter dem Trial getrimmt werden soll
     :param min_len: minimaler Länge des Trials
@@ -113,14 +112,14 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
             if F.shape[0] == 0:
                 continue
 
-            for widx in range(F.shape[0]):
+            for widx in range(F.shape[0]): # neubau des Dataframe mit features
                 feat = F[widx]
                 rows.append({
                     "subject_id": str(r["subject_id"]),
                     "hand": str(r["hand"]),
                     "session": csv_path,
                     "trial_id": trial_id,
-                    "label": y,
+                    "label": y, # Klassenlabel
                     "widx": widx,
                     **{f"f{j}": float(feat[j]) for j in range(feat.shape[0])}
                 })
@@ -148,29 +147,29 @@ def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 def run_loso(feature_df: pd.DataFrame, hand: str):
-    df = feature_df[feature_df["hand"] == hand].copy()
+    df = feature_df[feature_df["hand"] == hand].copy() # Extraction of the hand (l or r)
     if df.empty:
         print(f"No data for hand={hand}")
         return
 
-    X = df[[c for c in df.columns if c.startswith("f")]].to_numpy(dtype=np.float32)
-    y = df["label"].to_numpy(dtype=int)
-    groups = df["subject_id"].to_numpy()
+    X = df[[c for c in df.columns if c.startswith("f")]].to_numpy(dtype=np.float32) # suche nach den feature columns. Starten mit "f"
+    y = df["label"].to_numpy(dtype=int) # suche nach blocklabel
+    groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
-    logo = LeaveOneGroupOut()
-    model = LinearDiscriminantAnalysis()
+    logo = LeaveOneGroupOut() # Provides train/test split by letting one out of the groups
+    model = LinearDiscriminantAnalysis() # testing the LDA as first model
 
     # window-level predictions sammeln
-    preds = np.empty_like(y)
-    for train_idx, test_idx in logo.split(X, y, groups=groups):
+    preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
+    for train_idx, test_idx in logo.split(X, y, groups=groups): # using logo to spliz and train model
         model.fit(X[train_idx], y[train_idx])
-        preds[test_idx] = model.predict(X[test_idx])
+        preds[test_idx] = model.predict(X[test_idx]) # look at the test_idx
 
     df_pred = df[["subject_id", "session", "trial_id", "label"]].copy()
-    df_pred["pred"] = preds
+    df_pred["pred"] = preds # adding the prediction in a new df
 
     # trial-level voting
-    trial_df = trial_level_vote(df_pred)
+    trial_df = trial_level_vote(df_pred)  # majority vote der sliding windows
 
     labels = [0,1,2,3,4]
     cm = confusion_matrix(trial_df["true"], trial_df["pred"], labels=labels)
