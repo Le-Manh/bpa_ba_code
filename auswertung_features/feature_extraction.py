@@ -25,8 +25,13 @@ class TrialRow:
     label: int
     X: np.ndarray  # (N,4) float32
 
-def load_session(csv_path: Path) -> pd.DataFrame:
+def load_session(csv_path: Path) -> pd.DataFrame | None:
+    #print(f"Loading session from {csv_path}")
     df = pd.read_csv(csv_path)
+    # check if df is empty
+    if df.empty:
+        print(f"No session found in {csv_path}")
+        return None
     # minimal sanity checks
     missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns] # check if all the csv are full
     if missing:
@@ -97,6 +102,10 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
     for i, r in meta.iterrows(): # über die Tabelle iterieren
         csv_path = r["rel_path"]
         df = load_session(csv_path) # csv laden + check ob die wichtigen spalten existieren
+
+        #Error Handling für leere dfs
+        if df is None:
+            continue
 
         blocks = split_into_label_blocks(df, trim=trim, min_len=min_len)
 
