@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import LeaveOneGroupOut
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.metrics import confusion_matrix, classification_report
+
+LABEL_COL = "Aktueller Finger"
+TIME_COL = "timestamp_ms"
+SENSORS = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
+
+# Sensor 2 ist Gegenseite (Extensor-Seite)
+EXT_IDX = 2
+FLEX_IDXS = [0, 1, 3]
+
+@dataclass
+class TrialRow:
+    subject_id: str
+    hand: str
+    session: str   # rel_path
+    trial_id: int
+    label: int
+    X: np.ndarray  # (N,4) float32
+
+def load_session(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path)
+    # minimal sanity checks
+    missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns in {csv_path}: {missing}")
+    df = df.sort_values(TIME_COL).reset_index(drop=True)
+    return df
+
+def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300) -> list[tuple[np.ndarray, int]]:
+    """Segmentiert eine Session in Label-Blöcke. Jeder Block wird zu einem Trial-Kandidaten."""
+    finger = df[LABEL_COL].to_numpy()
+    change = np.r_[True, finger[1:] != finger[:-1]]
+    seg_id = np.cumsum(change) - 1
+
+    trials = []
+    for sid in np.unique(seg_id):
+        block = df.loc[seg_id == sid, [LABEL_COL] + SENSORS]
+        y = int(block[LABEL_COL].iloc[0])
+        X = block[SENSORS].to_numpy(dtype=np.float32)
+
+        if X.shape[0] <= 2 * trim:
+            continue
+        X = X[trim:-trim]
+        if X.shape[0] < min_len:
+            continue
+
+        trials.append((X, y))
+
+    return trials
+
+def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 1e-8) -> np.ndarray:
+    """
+    X: (N,4) float32
+    returns: (n_windows, n_features)
+    Features: RMS(4) + WL(4) + p(4) + ratio_ext_flex(1) = 13
+    """
+    feats = []
+    N = X.shape[0]
+    for start in range(0, N - win + 1, step):
+        w = X[start:start + win]
+
+        rms = np.sqrt(np.mean(w * w, axis=0) + eps)                  # (4,)
+        wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,)
+        p = rms / (np.sum(rms) + eps)                                 # (4,)
+
+        ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar
+
+        f = np.concatenate([rms, wl, p, [ratio_ext_flex]], axis=0)
+        feats.append(f)
+
+    if not feats:
+        return np.zeros((0, 13), dtype=np.float32)
+
+    return np.vstack(feats).astype(np.float32)
+
+def build_feature_table(meta: pd.DataFrame, data_root: Path,
+                        trim: int = 50, min_len: int = 300,
+                        win: int = 100, step: int = 50) -> pd.DataFrame:
+    rows = []
+    for i, r in meta.iterrows():
+        rel_path = r["rel_path"]
+        csv_path = data_root / rel_path
+        df = load_session(csv_path)
+
+        blocks = split_into_label_blocks(df, trim=trim, min_len=min_len)
+
+        # Optionaler Check: idealerweise genau 5 Blöcke (0..4)
+        # Wenn nicht, loggen (nicht zwingend skippen).
+        labels_found = [y for (_, y) in blocks]
+        if len(blocks) != 5 or sorted(set(labels_found)) != [0,1,2,3,4]:
+            print(f"[WARN] {rel_path}: found blocks={len(blocks)}, labels={labels_found}")
+
+        for trial_id, (X, y) in enumerate(blocks):
+            F = window_features(X, win=win, step=step)
+            # Falls nach Fensterung nix übrig bleibt -> skip
+            if F.shape[0] == 0:
+                continue
+
+            for widx in range(F.shape[0]):
+                feat = F[widx]
+                rows.append({
+                    "subject_id": str(r["subject_id"]),
+                    "hand": str(r["hand"]),
+                    "session": rel_path,
+                    "trial_id": trial_id,
+                    "label": y,
+                    "widx": widx,
+                    **{f"f{j}": float(feat[j]) for j in range(feat.shape[0])}
+                })
+
+    return pd.DataFrame(rows)
+
+def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
+    """
+    df_pred enthält: subject_id, session, trial_id, label (true), pred (window)
+    Gibt trial-level Pred via Majority Vote zurück.
+    """
+    gcols = ["subject_id", "session", "trial_id"]
+    out = []
+    for k, g in df_pred.groupby(gcols, sort=False):
+        true_label = int(g["label"].iloc[0])
+        # Majority vote
+        pred_label = int(g["pred"].value_counts().idxmax())
+        out.append({
+            "subject_id": k[0],
+            "session": k[1],
+            "trial_id": k[2],
+            "true": true_label,
+            "pred": pred_label
+        })
+    return pd.DataFrame(out)
+
+def run_loso(feature_df: pd.DataFrame, hand: str):
+    df = feature_df[feature_df["hand"] == hand].copy()
+    if df.empty:
+        print(f"No data for hand={hand}")
+        return
+
+    X = df[[c for c in df.columns if c.startswith("f")]].to_numpy(dtype=np.float32)
+    y = df["label"].to_numpy(dtype=int)
+    groups = df["subject_id"].to_numpy()
+
+    logo = LeaveOneGroupOut()
+    model = LinearDiscriminantAnalysis()
+
+    # window-level predictions sammeln
+    preds = np.empty_like(y)
+    for train_idx, test_idx in logo.split(X, y, groups=groups):
+        model.fit(X[train_idx], y[train_idx])
+        preds[test_idx] = model.predict(X[test_idx])
+
+    df_pred = df[["subject_id", "session", "trial_id", "label"]].copy()
+    df_pred["pred"] = preds
+
+    # trial-level voting
+    trial_df = trial_level_vote(df_pred)
+
+    labels = [0,1,2,3,4]
+    cm = confusion_matrix(trial_df["true"], trial_df["pred"], labels=labels)
+    print(f"\n=== HAND {hand}: Trial-level Confusion Matrix (labels 0..4) ===")
+    print(cm)
+
+    print(f"\n=== HAND {hand}: Trial-level report ===")
+    print(classification_report(trial_df["true"], trial_df["pred"], labels=labels, digits=3))
+
+    # Fokus: klein (0) vs ring (1)
+    mask01 = trial_df["true"].isin([0,1])
+    if mask01.any():
+        cm01 = confusion_matrix(trial_df.loc[mask01,"true"], trial_df.loc[mask01,"pred"], labels=[0,1])
+        print(f"\n=== HAND {hand}: Fokus 0<->1 (klein<->ring) ===")
+        print(cm01)
+
+def main():
+    data_root = Path("/path/to/your/data_root")  # <-- anpassen
+    meta_path = Path("meta.csv")                # bleibt im repo/arbeitspfad
+
+    meta = pd.read_csv(meta_path)
+    # Minimale Checks
+    for col in ["rel_path", "subject_id", "hand"]:
+        if col not in meta.columns:
+            raise ValueError(f"meta.csv missing column: {col}")
+
+    # Features bauen
+    feat_df = build_feature_table(
+        meta=meta,
+        data_root=data_root,
+        trim=50,
+        min_len=300,
+        win=100,
+        step=50
+    )
+
+    print("Feature table shape:", feat_df.shape)
+    print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
+
+    # LOSO getrennt für L und R
+    run_loso(feat_df, hand="L")
+    run_loso(feat_df, hand="R")
+
+if __name__ == "__main__":
+    main()
