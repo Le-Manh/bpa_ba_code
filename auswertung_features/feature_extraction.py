@@ -7,7 +7,13 @@ import pandas as pd
 
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import confusion_matrix, classification_report
+
+from scipy.fft import rfft
 
 LABEL_COL = "Aktueller Finger"
 TIME_COL = "timestamp_ms"
@@ -30,7 +36,7 @@ def load_session(csv_path: Path) -> pd.DataFrame | None:
     df = pd.read_csv(csv_path)
     # check if df is empty
     if df.empty:
-        print(f"No session found in {csv_path}")
+        print(f"[WARN] {csv_path}: is empty")
         return None
     # minimal sanity checks
     missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns] # check if all the csv are full
@@ -55,7 +61,9 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
         # abschneiden der Werte anhand des trim
         if X.shape[0] <= 2 * trim: # verwerfen von Messwerten die nciht trimbar sind
             continue
-        X = X[trim:-trim] # trim wird vorne und hinten weggeworfen
+        if trim > 0:
+            X = X[trim:-trim] # trim wird vorne und hinten weggeworfen
+
         if X.shape[0] < min_len: # wenn min_len 300 ist dann werden alle Messungen unter 600ms verworfen
             continue
 
@@ -70,6 +78,7 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
     Features: RMS(4) + WL(4) + p(4) + ratio_ext_flex(1) = 13
     """
     feats = []
+
     N = X.shape[0]
     for start in range(0, N - win + 1, step): # loop durch alle Werte. Start 0, Ende alle N Werte ohne den letzte win, wenn step größer ist als das letzte win dann wird komplett übersprungen
         w = X[start:start + win] # window extrahieren
@@ -77,10 +86,33 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         rms = np.sqrt(np.mean(w * w, axis=0) + eps)                  # (4,) root mean square
         wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,) wave length
         p = rms / (np.sum(rms) + eps)                                 # (4,) normiertes Amplituden-/Energieverhältnis
+        min = np.min(w, axis=0)  # (4,) Min Wert
+        max = np.max(w, axis=0)  # (4,) Max Wert
+        mean = np.mean(w, axis=0)  # (4,) Mittelwert
+        var = np.var(w, axis=0) # (4,) varianz
+        std = np.std(w, axis=0) # (4,) standardabweichung
+        peak = np.max(np.abs(w), axis=0)
+        p2p = np.ptp(w, axis=0)  # peak to peak
+        crest = peak / (rms + eps)  # peak value durch RMS
 
         ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar # Betrachtungvon Flexior und Extensior (Sensor 2 und Rest)
 
-        f = np.concatenate([rms, wl, p, [ratio_ext_flex]], axis=0) # Alle Messwerte in einem Array zusammen concatenaten
+        # Frequenz features
+        ft = rfft(w, axis=0)  # (n_freq_bins, n_sensors)
+        S = (np.abs(ft) ** 2) / w.shape[0]  # Power-Spektrum
+
+        max_f = np.max(S, axis=0)
+        sum_f = np.sum(S, axis=0)
+        mean_f = np.mean(S, axis=0)
+        var_f = np.var(S, axis=0)
+
+        f = np.concatenate([
+            rms, wl, p,
+            min, max, mean, var, std,
+            peak, p2p, crest,
+            max_f, sum_f, mean_f, var_f,
+            [ratio_ext_flex]
+        ], axis=0) # Alle Messwerte in einem Array zusammen concatenaten
         feats.append(f)
 
     if not feats:
@@ -167,6 +199,10 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
 
     logo = LeaveOneGroupOut() # Provides train/test split by letting one out of the groups
     model = LinearDiscriminantAnalysis() # testing the LDA as first model
+    #model = LinearSVC()
+    #model = RandomForestClassifier(max_depth=2, random_state=42)
+    #model = KNeighborsClassifier(n_neighbors = 1)
+    #model = DecisionTreeClassifier(random_state=42)
 
     # window-level predictions sammeln
     preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
@@ -185,7 +221,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
     print(f"\n=== HAND {hand}: Trial-level Confusion Matrix (labels 0..4) ===")
     print(cm)
 
-    print(f"\n=== HAND {hand}: Trial-level report ===")
+    print(f"\n=== HAND {hand}: Trial-level report ===") # precision ist wie oft richtig, recall sensitivität wie viele der richtigen wenn wirklich richtig, F1 Mittelwert-Kompromiss aus precision & recall
     print(classification_report(trial_df["true"], trial_df["pred"], labels=labels, digits=3))
 
     # Fokus: klein (0) vs ring (1)
@@ -208,18 +244,18 @@ def main():
     # Features bauen
     feat_df = build_feature_table(
         meta=meta,
-        trim=50,
+        trim=0,
         min_len=300,
-        win=100,
-        step=50
+        win=300,
+        step=100
     )
 
     print("Feature table shape:", feat_df.shape)
     print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
 
-    # LOSO getrennt für L und R
-    run_loso(feat_df, hand="L")
-    run_loso(feat_df, hand="R")
+    # LOSO getrennt für l und r
+    run_loso(feat_df, hand="l")
+    run_loso(feat_df, hand="r")
 
 if __name__ == "__main__":
     main()
