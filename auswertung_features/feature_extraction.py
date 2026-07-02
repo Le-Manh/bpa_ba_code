@@ -21,7 +21,6 @@ FLEX_IDXS = [0, 1, 3]
 class TrialRow:
     subject_id: str
     hand: str
-    session: str   # rel_path
     trial_id: int
     label: int
     X: np.ndarray  # (N,4) float32
@@ -29,7 +28,7 @@ class TrialRow:
 def load_session(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     # minimal sanity checks
-    missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns]
+    missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns] # check if all the csv are full
     if missing:
         raise ValueError(f"Missing columns in {csv_path}: {missing}")
     df = df.sort_values(TIME_COL).reset_index(drop=True)
@@ -38,22 +37,24 @@ def load_session(csv_path: Path) -> pd.DataFrame:
 def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300) -> list[tuple[np.ndarray, int]]:
     """Segmentiert eine Session in Label-Blöcke. Jeder Block wird zu einem Trial-Kandidaten."""
     finger = df[LABEL_COL].to_numpy()
-    change = np.r_[True, finger[1:] != finger[:-1]]
-    seg_id = np.cumsum(change) - 1
+    change = np.r_[True, finger[1:] != finger[:-1]] #Translates slice objects to concatenation along the first axis, https://numpy.org/doc/stable/reference/generated/numpy.r_.html
+    # change is an array which indicates where the finger was changed
+    seg_id = np.cumsum(change) - 1 #cumulative sum of change and -1 to let our segmentation start with 0
 
-    trials = []
-    for sid in np.unique(seg_id):
-        block = df.loc[seg_id == sid, [LABEL_COL] + SENSORS]
-        y = int(block[LABEL_COL].iloc[0])
-        X = block[SENSORS].to_numpy(dtype=np.float32)
+    trials = [] # extrahieren einer Bewegung
+    for sid in np.unique(seg_id): # pro unique seg_id auslesen
+        block = df.loc[seg_id == sid, [LABEL_COL] + SENSORS] # aus dataframe den Block extrahieren
+        y = int(block[LABEL_COL].iloc[0]) # Klassenlabel auslesen
+        X = block[SENSORS].to_numpy(dtype=np.float32) # get sensor data
 
-        if X.shape[0] <= 2 * trim:
+        # abschneiden der Werte anhand des trim
+        if X.shape[0] <= 2 * trim: # verwerfen von Messwerten die nciht trimbar sind
             continue
-        X = X[trim:-trim]
-        if X.shape[0] < min_len:
+        X = X[trim:-trim] # trim wird vorne und hinten weggeworfen
+        if X.shape[0] < min_len: # wenn min_len 300 ist dann werden alle Messungen unter 600ms verworfen
             continue
 
-        trials.append((X, y))
+        trials.append((X, y))  #zurück in die Liste packen
 
     return trials
 
@@ -65,12 +66,12 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
     """
     feats = []
     N = X.shape[0]
-    for start in range(0, N - win + 1, step):
-        w = X[start:start + win]
+    for start in range(0, N - win + 1, step): # loop durch alle Werte. Start 0, Ende alle N Werte ohne den letzte win, wenn step größer ist als das letzte win dann wird komplett übersprungen
+        w = X[start:start + win] # window extrahieren
 
-        rms = np.sqrt(np.mean(w * w, axis=0) + eps)                  # (4,)
-        wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,)
-        p = rms / (np.sum(rms) + eps)                                 # (4,)
+        rms = np.sqrt(np.mean(w * w, axis=0) + eps)                  # (4,) root mean square
+        wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,) wave length
+        p = rms / (np.sum(rms) + eps)                                 # (4,) normiertes Amplituden-/Energieverhältnis
 
         ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar
 
@@ -82,22 +83,29 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
 
     return np.vstack(feats).astype(np.float32)
 
-def build_feature_table(meta: pd.DataFrame, data_root: Path,
-                        trim: int = 50, min_len: int = 300,
+def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
                         win: int = 100, step: int = 50) -> pd.DataFrame:
+    """
+
+    :param meta: meta.csv mit der Übersicht der Messungen und Probanden
+    :param trim: Wie viel vor und hinter dem Trial getrimmt werden soll
+    :param min_len: minimaler Länge des Trials
+    :param win: Länge des Windows
+    :param step: Schritt der feature extraction
+    :return: dataframe mit den extraktions features
+    """
     rows = []
-    for i, r in meta.iterrows():
-        rel_path = r["rel_path"]
-        csv_path = data_root / rel_path
-        df = load_session(csv_path)
+    for i, r in meta.iterrows(): # über die Tabelle iterieren
+        csv_path = r["rel_path"]
+        df = load_session(csv_path) # csv laden + check ob die wichtigen spalten existieren
 
         blocks = split_into_label_blocks(df, trim=trim, min_len=min_len)
 
-        # Optionaler Check: idealerweise genau 5 Blöcke (0..4)
+        # Check: idealerweise genau 5 Blöcke (0..4)
         # Wenn nicht, loggen (nicht zwingend skippen).
         labels_found = [y for (_, y) in blocks]
         if len(blocks) != 5 or sorted(set(labels_found)) != [0,1,2,3,4]:
-            print(f"[WARN] {rel_path}: found blocks={len(blocks)}, labels={labels_found}")
+            print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
             F = window_features(X, win=win, step=step)
@@ -110,7 +118,7 @@ def build_feature_table(meta: pd.DataFrame, data_root: Path,
                 rows.append({
                     "subject_id": str(r["subject_id"]),
                     "hand": str(r["hand"]),
-                    "session": rel_path,
+                    "session": csv_path,
                     "trial_id": trial_id,
                     "label": y,
                     "widx": widx,
@@ -180,19 +188,18 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
         print(cm01)
 
 def main():
-    data_root = Path("/path/to/your/data_root")  # <-- anpassen
+
     meta_path = Path("meta.csv")                # bleibt im repo/arbeitspfad
 
-    meta = pd.read_csv(meta_path)
+    meta = pd.read_csv(meta_path) # Einlesen von den metadaten
     # Minimale Checks
-    for col in ["rel_path", "subject_id", "hand"]:
+    for col in ["rel_path", "subject_id", "hand"]: #Kontrolle ob rel_path, subject_id und hand existiert
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
 
     # Features bauen
     feat_df = build_feature_table(
         meta=meta,
-        data_root=data_root,
         trim=50,
         min_len=300,
         win=100,
