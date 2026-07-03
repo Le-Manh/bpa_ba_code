@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -11,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay, f1_score, accuracy_score
 
 from scipy.stats import skew, kurtosis
 from scipy.fft import rfft
@@ -232,12 +233,22 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
     print(f"\n=== HAND {hand}: Trial-level report ===") # precision ist wie oft richtig, recall sensitivität wie viele der richtigen wenn wirklich richtig, F1 Mittelwert-Kompromiss aus precision & recall
     print(classification_report(trial_df["true"], trial_df["pred"], labels=labels, digits=3))
 
+    showAccuracyAndCM(trial_df["true"], trial_df["pred"], labels)
+
     # Fokus: klein (0) vs ring (1)
     mask01 = trial_df["true"].isin([0,1])
     if mask01.any():
         cm01 = confusion_matrix(trial_df.loc[mask01,"true"], trial_df.loc[mask01,"pred"], labels=[0,1])
         print(f"\n=== HAND {hand}: Fokus 0<->1 (klein<->ring) ===")
         print(cm01)
+
+def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
+    print("accuracy_score:  " + str(accuracy_score(fingerLabelArray, predictedLabels)))
+    print("F1-Score: " + str(f1_score(fingerLabelArray, predictedLabels, average=None, zero_division=0)))
+    print(classification_report(fingerLabelArray, predictedLabels, zero_division=0))
+    cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
+    disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
+    disp2.plot()
 
 def main():
 
@@ -252,7 +263,7 @@ def main():
     # Features bauen
     feat_df = build_feature_table(
         meta=meta,
-        trim=0,
+        trim=50,
         min_len=300,
         win=300,
         step=100
