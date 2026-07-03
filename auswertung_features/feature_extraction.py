@@ -90,6 +90,7 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         min = np.min(w, axis=0)  # (4,) Min Wert
         max = np.max(w, axis=0)  # (4,) Max Wert
         mean = np.mean(w, axis=0)  # (4,) Mittelwert
+        mav = np.mean(np.abs(w), axis=0) # mean absolute value
         var = np.var(w, axis=0) # (4,) varianz
         std = np.std(w, axis=0) # (4,) standardabweichung
         peak = np.max(np.abs(w), axis=0)
@@ -112,7 +113,7 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         kurtosis_f = kurtosis(S, axis=0)
 
         f = np.concatenate([
-            rms, wl, p,
+            rms, wl, p, mav,
             min, max, mean, var, std,
             peak, p2p, crest,
             skew_t, kurtosis_t,
