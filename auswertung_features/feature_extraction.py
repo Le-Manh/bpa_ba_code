@@ -13,6 +13,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 
+from scipy.stats import skew, kurtosis
 from scipy.fft import rfft
 
 LABEL_COL = "Aktueller Finger"
@@ -94,6 +95,8 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         peak = np.max(np.abs(w), axis=0)
         p2p = np.ptp(w, axis=0)  # peak to peak
         crest = peak / (rms + eps)  # peak value durch RMS
+        skew_t = skew(w, axis=0)
+        kurtosis_t = kurtosis(w, axis=0)
 
         ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar # Betrachtungvon Flexior und Extensior (Sensor 2 und Rest)
 
@@ -105,12 +108,16 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
         sum_f = np.sum(S, axis=0)
         mean_f = np.mean(S, axis=0)
         var_f = np.var(S, axis=0)
+        skew_f = skew(S, axis=0)
+        kurtosis_f = kurtosis(S, axis=0)
 
         f = np.concatenate([
             rms, wl, p,
             min, max, mean, var, std,
             peak, p2p, crest,
+            skew_t, kurtosis_t,
             max_f, sum_f, mean_f, var_f,
+            skew_f, kurtosis_f,
             [ratio_ext_flex]
         ], axis=0) # Alle Messwerte in einem Array zusammen concatenaten
         feats.append(f)
