@@ -6,15 +6,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import FEATURE_SETS
+from parameterraum import FEATURE_SETS, TEST_MODELS
 
-from sklearn.model_selection import LeaveOneGroupOut
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import LinearSVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import LeaveOneGroupOut, LeavePGroupsOut
+
 from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay, f1_score, accuracy_score
 
 from scipy.fft import rfft
@@ -167,7 +164,7 @@ def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
         })
     return pd.DataFrame(out)
 
-def run_loso(feature_df: pd.DataFrame, hand: str):
+def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
     df = feature_df[feature_df["hand"] == hand].copy() # Extraction of the hand (l or r)
     if df.empty:
         print(f"No data for hand={hand}")
@@ -177,16 +174,12 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
     y = df["label"].to_numpy(dtype=int) # suche nach blocklabel
     groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
-    logo = LeaveOneGroupOut() # Provides train/test split by letting one out of the groups
-    model = LinearDiscriminantAnalysis() # testing the LDA as first model
-    #model = LinearSVC()
-    #model = RandomForestClassifier(max_depth=2, random_state=42)
-    #model = KNeighborsClassifier(n_neighbors = 1)
-    #model = DecisionTreeClassifier(random_state=42)
+    logo = LeavePGroupsOut(2) # Provides train/test split by letting one out of the groups
+    model = MODELS_SUPERVISED[model]
 
     # window-level predictions sammeln
     preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
-    for train_idx, test_idx in logo.split(X, y, groups=groups): # using logo to spliz and train model
+    for train_idx, test_idx in logo.split(X, y, groups=groups): # using logo to split and train model
         model.fit(X[train_idx], y[train_idx])
         preds[test_idx] = model.predict(X[test_idx]) # look at the test_idx
 
@@ -216,11 +209,11 @@ def run_loso(feature_df: pd.DataFrame, hand: str):
 def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
     print("accuracy_score:  " + str(accuracy_score(fingerLabelArray, predictedLabels)))
     print("F1-Score: " + str(f1_score(fingerLabelArray, predictedLabels, average=None, zero_division=0)))
-    print(classification_report(fingerLabelArray, predictedLabels, zero_division=0))
+    #print(classification_report(fingerLabelArray, predictedLabels, zero_division=0))
     cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
     disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
     disp2.plot()
-    plt.show()
+    #plt.show()
 
 def main():
 
@@ -245,8 +238,10 @@ def main():
     print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
 
     # LOSO getrennt für l und r
-    run_loso(feat_df, hand="l")
-    run_loso(feat_df, hand="r")
+    # gleichzeitiger Test mehrerer supervised Modelle
+    for model in TEST_MODELS["supervised"]:
+        run_loso(feat_df, hand="l",model=model)
+        run_loso(feat_df, hand="r",model=model)
 
 if __name__ == "__main__":
     main()
