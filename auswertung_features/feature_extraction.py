@@ -6,6 +6,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from features import FEATURES_TIME, FEATURES_FREQ
+from parameterraum import FEATURE_SETS
+
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
@@ -14,7 +17,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay, f1_score, accuracy_score
 
-from scipy.stats import skew, kurtosis
 from scipy.fft import rfft
 
 LABEL_COL = "Aktueller Finger"
@@ -73,7 +75,7 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
 
     return trials
 
-def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 1e-8) -> np.ndarray:
+def window_features(X: np.ndarray, feature_name_time: list,feature_name_freq: list, win: int = 100, step: int = 50, eps: float = 1e-8) -> np.ndarray:
     """
     X: (N,4) float32
     returns: (n_windows, n_features)
@@ -84,44 +86,13 @@ def window_features(X: np.ndarray, win: int = 100, step: int = 50, eps: float = 
     N = X.shape[0]
     for start in range(0, N - win + 1, step): # loop durch alle Werte. Start 0, Ende alle N Werte ohne den letzte win, wenn step größer ist als das letzte win dann wird komplett übersprungen
         w = X[start:start + win] # window extrahieren
+        ft = rfft(w, axis=0)
+        s = (np.abs(ft) ** 2) / w.shape[0]
 
-        rms = np.sqrt(np.mean(w * w, axis=0) + eps)                  # (4,) root mean square
-        wl = np.sum(np.abs(np.diff(w, axis=0)), axis=0)              # (4,) wave length
-        p = rms / (np.sum(rms) + eps)                                 # (4,) normiertes Amplituden-/Energieverhältnis
-        min = np.min(w, axis=0)  # (4,) Min Wert
-        max = np.max(w, axis=0)  # (4,) Max Wert
-        mean = np.mean(w, axis=0)  # (4,) Mittelwert
-        mav = np.mean(np.abs(w), axis=0) # mean absolute value
-        var = np.var(w, axis=0) # (4,) varianz
-        std = np.std(w, axis=0) # (4,) standardabweichung
-        peak = np.max(np.abs(w), axis=0)
-        p2p = np.ptp(w, axis=0)  # peak to peak
-        crest = peak / (rms + eps)  # peak value durch RMS
-        skew_t = skew(w, axis=0)
-        kurtosis_t = kurtosis(w, axis=0)
+        time_parts = [FEATURES_TIME[name](w, eps=eps) for name in feature_name_time]
+        freq_parts = [FEATURES_FREQ[name](s, eps=eps) for name in feature_name_freq]
 
-        ratio_ext_flex = rms[EXT_IDX] / (np.sum(rms[FLEX_IDXS]) + eps)  # scalar # Betrachtungvon Flexior und Extensior (Sensor 2 und Rest)
-
-        # Frequenz features
-        ft = rfft(w, axis=0)  # (n_freq_bins, n_sensors)
-        S = (np.abs(ft) ** 2) / w.shape[0]  # Power-Spektrum
-
-        max_f = np.max(S, axis=0)
-        sum_f = np.sum(S, axis=0)
-        mean_f = np.mean(S, axis=0)
-        var_f = np.var(S, axis=0)
-        skew_f = skew(S, axis=0)
-        kurtosis_f = kurtosis(S, axis=0)
-
-        f = np.concatenate([
-            rms, wl, p, mav,
-            min, max, mean, var, std,
-            peak, p2p, crest,
-            skew_t, kurtosis_t,
-            max_f, sum_f, mean_f, var_f,
-            skew_f, kurtosis_f,
-            [ratio_ext_flex]
-        ], axis=0) # Alle Messwerte in einem Array zusammen concatenaten
+        f = np.concatenate(time_parts+freq_parts, axis=0)
         feats.append(f)
 
     if not feats:
@@ -157,7 +128,7 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            F = window_features(X, win=win, step=step)
+            F = window_features(X,FEATURE_SETS["time"],FEATURE_SETS["freq"], win=win, step=step)
             # Falls nach Fensterung nix übrig bleibt -> skip
             if F.shape[0] == 0:
                 continue
@@ -249,6 +220,7 @@ def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
     cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
     disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
     disp2.plot()
+    plt.show()
 
 def main():
 
