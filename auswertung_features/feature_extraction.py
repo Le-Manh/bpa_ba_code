@@ -207,6 +207,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
         print(cm01)
 
 def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
+    #TODO Change function to save cm and write into a kind of a result.csv
     print("accuracy_score:  " + str(accuracy_score(fingerLabelArray, predictedLabels)))
     print("F1-Score: " + str(f1_score(fingerLabelArray, predictedLabels, average=None, zero_division=0)))
     #print(classification_report(fingerLabelArray, predictedLabels, zero_division=0))
@@ -224,7 +225,7 @@ def main():
     for col in ["rel_path", "subject_id", "hand"]: #Kontrolle ob rel_path, subject_id und hand existiert
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
-
+    # TODO change build_feature_table so it can 1. iterate from PARAM_GRID and 2. give it to run_loso so it can be written in the result.csv
     # Features bauen
     feat_df = build_feature_table(
         meta=meta,

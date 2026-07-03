@@ -20,7 +20,7 @@ def register_model_supervised(name: str):
 # =========================================================
 # ===                supervised models                  ===
 # =========================================================
-
+# TODO more supervised models AND check if a class needs a param like knn
 @register_model_supervised('lda')
 def model_lda(**kwargs):
     return LinearDiscriminantAnalysis()
