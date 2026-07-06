@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
@@ -97,14 +98,10 @@ def window_features(X: np.ndarray, feature_name_time: list,feature_name_freq: li
 
     return np.vstack(feats).astype(np.float32)  # rebuilded Array from a list as a vertical Array (1,N)
 
-def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
-                        win: int = 100, step: int = 50) -> pd.DataFrame:
+def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFrame:
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
-    :param trim: Wie viel vor und hinter dem Trial getrimmt werden soll
-    :param min_len: minimaler Länge des Trials
-    :param win: Länge des Windows
-    :param step: Schritt der feature extraction
+    :param model_cfg: Alle Daten die ausprobeirt werden sollen
     :return: dataframe mit den extractions features
     """
     rows = []
@@ -116,7 +113,7 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
         if df is None:
             continue
 
-        blocks = split_into_label_blocks(df, trim=trim, min_len=min_len)
+        blocks = split_into_label_blocks(df, trim=model_cfg.trim, min_len=model_cfg.min_len)
 
         # Check: idealerweise genau 5 Blöcke (0..4)
         # Wenn nicht, loggen (nicht zwingend skippen).
@@ -125,7 +122,7 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            F = window_features(X,FEATURE_SETS["time"],FEATURE_SETS["freq"], win=win, step=step)
+            F = window_features(X,FEATURE_SETS["time"],FEATURE_SETS["freq"], win=model_cfg.win, step=model_cfg.step)
             # Falls nach Fensterung nix übrig bleibt -> skip
             if F.shape[0] == 0:
                 continue
@@ -164,7 +161,7 @@ def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
         })
     return pd.DataFrame(out)
 
-def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
+def run_loso(feature_df: pd.DataFrame, hand: str, model_cfg: model_config):
     df = feature_df[feature_df["hand"] == hand].copy() # Extraction of the hand (l or r)
     if df.empty:
         print(f"No data for hand={hand}")
@@ -175,7 +172,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
     groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
     logo = LeavePGroupsOut(2) # Provides train/test split by letting one out of the groups
-    model = MODELS_SUPERVISED[model]()
+    model = MODELS_SUPERVISED[model_cfg.model_name]()
 
     # window-level predictions sammeln
     preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
@@ -197,7 +194,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
     print(f"\n=== HAND {hand}: Trial-level report ===") # precision ist wie oft richtig, recall sensitivität wie viele der richtigen wenn wirklich richtig, F1 Mittelwert-Kompromiss aus precision & recall
     print(classification_report(trial_df["true"], trial_df["pred"], labels=labels, digits=3))
 
-    showAccuracyAndCM(trial_df["true"], trial_df["pred"], labels)
+    showAccuracyAndCM(trial_df["true"], trial_df["pred"], labels, model_cfg = model_cfg)
 
     # Fokus: klein (0) vs ring (1)
     mask01 = trial_df["true"].isin([0,1])
@@ -206,7 +203,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
         print(f"\n=== HAND {hand}: Fokus 0<->1 (klein<->ring) ===")
         print(cm01)
 
-def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
+def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes, model_cfg: model_config):
     #TODO Change function to save cm and write into a kind of a result.csv
     print("accuracy_score:  " + str(accuracy_score(fingerLabelArray, predictedLabels)))
     print("F1-Score: " + str(f1_score(fingerLabelArray, predictedLabels, average=None, zero_division=0)))
@@ -214,8 +211,13 @@ def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
     cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
     disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
     disp2.plot()
-    disp2.ax_.set_title("Confusion Matrix")
-    disp2.figure_.savefig("confusion_matrix.png")
+    disp2.ax_.set_title(f"Confusion Matrix {model_cfg.model_name}")
+    figure_name= (f"{datetime.today().strftime('%Y-%m-%d')}_"
+                  f"{model_cfg.model_name}_"
+                  f"trim{model_cfg.trim}_"
+                  f"min-len{model_cfg.min_len}_"
+                  f"win{model_cfg.win}_step{model_cfg.step}.svg")
+    disp2.figure_.savefig(f"result_plots/{model_cfg.model_name}/{figure_name}", format="svg")
 
 
 def main():
@@ -229,10 +231,11 @@ def main():
             raise ValueError(f"meta.csv missing column: {col}")
     # TODO change build_feature_table so it can 1. iterate from PARAM_GRID and 2. give it to run_loso so it can be written in the result.csv
 
-    for model in TEST_MODELS["supervised"]:
+    for model in TEST_MODELS["supervised"]: # this is only tmp I have to get another loop with unsupervised and ANN
         for params in PARAM_GRID:
             model_cfg = model_config(
                 model_name=model,
+                #model_type="supervised", # TODO after I implemented more models this should be used
                 trim= params["trim"],
                 min_len= params["min_len"],
                 win= params["win"],
@@ -243,20 +246,17 @@ def main():
             # Features bauen
             feat_df = build_feature_table(
             meta=meta,
-            trim=model_cfg.trim,
-            min_len=model_cfg.min_len,
-            win=,
-            step=100
+            model_cfg=model_cfg,
             )
 
-    print("Feature table shape:", feat_df.shape)
-    print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
+            print("Feature table shape:", feat_df.shape)
+            print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
 
-    # LOSO getrennt für l und r
-    # gleichzeitiger Test mehrerer supervised Modelle
+            # LOSO getrennt für l und r
+            # gleichzeitiger Test mehrerer supervised Modelle
 
-        run_loso(feat_df, hand="l",model=model)
-        run_loso(feat_df, hand="r",model=model)
+            run_loso(feat_df, hand="l",model_cfg=model_cfg)
+            run_loso(feat_df, hand="r",model_cfg=model_cfg)
 
 if __name__ == "__main__":
     main()

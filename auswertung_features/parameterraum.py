@@ -1,13 +1,4 @@
-from dataclasses import dataclass
-
-@dataclass
-class model_config:
-    model_name: str
-    trim: int
-    min_len: int
-    win: int
-    step: int
-    features: list | dict
+from dataclasses import dataclass, field
 
 PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 100, "step": 25},
@@ -58,3 +49,13 @@ FEATURE_SETS = {
              "kurtosis_freq",
              ],
 }
+
+@dataclass
+class model_config:
+    model_name: str = "lda"
+    model_type: str = "supervised"
+    trim: int = 50
+    min_len: int  = 300
+    win: int = 100
+    step: int = 50
+    features: list | dict = field(default_factory=FEATURE_SETS)
