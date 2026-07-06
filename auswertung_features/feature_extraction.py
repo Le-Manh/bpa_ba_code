@@ -13,7 +13,7 @@ from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
 from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config
 
-from sklearn.model_selection import LeaveOneGroupOut, LeavePGroupsOut
+from sklearn.model_selection import LeavePGroupsOut
 from sklearn.base import clone
 from sklearn.metrics import (confusion_matrix, classification_report, ConfusionMatrixDisplay,
                              f1_score, accuracy_score, balanced_accuracy_score,
@@ -189,11 +189,12 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model_cfg: model_config):
     fold_rows = []
     cm_total = None
 
+    base_model = MODELS_SUPERVISED[model_cfg.model_name]()
+
     # window-level predictions sammeln
     for fold_i, (train_idx, test_idx) in enumerate(logo.split(X, y, groups=groups)):
-        model = MODELS_SUPERVISED[model_cfg.model_name]()  # pro Fold neu!
+        model = clone(base_model)  # pro Fold neu!
         model.fit(X[train_idx], y[train_idx])
-
         y_pred_win = model.predict(X[test_idx])
 
         df_pred_fold = df.iloc[test_idx][["subject_id", "session", "trial_id", "label"]].copy()
@@ -297,7 +298,6 @@ def main():
     for col in ["rel_path", "subject_id", "hand"]: #Kontrolle ob rel_path, subject_id und hand existiert
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
-    # TODO change build_feature_table so it can 1. iterate from PARAM_GRID and 2. give it to run_loso so it can be written in the result.csv
 
     for model in TEST_MODELS["supervised"]: # this is only tmp I have to get another loop with unsupervised and ANN
         for params in PARAM_GRID:
@@ -325,6 +325,10 @@ def main():
 
             run_loso(feat_df, hand="l",model_cfg=model_cfg)
             run_loso(feat_df, hand="r",model_cfg=model_cfg)
+
+    df_summary = pd.read_csv("result_summary.csv")
+    df_sorted = df_summary.sort_values("f1_macro_mean", ascending=False)
+    df_sorted.to_csv("result_summary.csv", index=False)
 
 if __name__ == "__main__":
     main()
