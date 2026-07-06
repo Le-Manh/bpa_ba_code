@@ -1,5 +1,6 @@
-from dataclasses import dataclass
-from typing import Tuple
+from dataclasses import dataclass, field
+from typing import Tuple, Any
+from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 100, "step": 25},
@@ -13,19 +14,18 @@ PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 300, "step": 50},
 ]
 
-TEST_MODELS = { # vllt 10?
-    "supervised" : ["lda",
-                    "randomForest",
-                    "knn",
-                    "linear-svm",
-                    "decisionTree",
-                    "log-reg",
-                    ],
-    "unsupervised" : [""], # TODO implement unsupervised
-    "ANN" : ["CNN"] # TODO wenn man mal Zeit hat
+MODEL_SPACE = {
+  "supervised": {
+    "linear-svm": ParameterGrid({"C": [0.1, 1.0, 10.0]}),
+    "knn": ParameterGrid({"n_neighbors": [3,5,7]}),
+  },
+  "clustering": {
+    "kmeans": ParameterGrid({"n_clusters":[5], "random_state":[0,1], "n_init":["auto"]}),
+  }
 }
 
-FEATURE_SETS = { # 3 Feature Sets
+
+FEATURE_SETS = {
     "time": ["rms",
              "wl",
              "p",
@@ -70,4 +70,8 @@ class DataConfig:
 @dataclass(frozen=True)
 class ModelConfig:
     model_name: str
-    #model_type: str # später für supervised/unsupervised etc
+    model_type: str
+    params: tuple[tuple[str, Any], ...] = field(default_factory=tuple)
+
+    def params_dict(self) -> dict[str, Any]:
+        return dict(self.params)

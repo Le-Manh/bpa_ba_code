@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import Any, Iterable
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -8,18 +8,21 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 import json
-from collections import defaultdict
+import itertools
+from collections import Counter
 
-from models import MODELS_SUPERVISED
+from models import MODELS_SUPERVISED, MODELS_CLUSTERING
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import TEST_MODELS, PARAM_GRID, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
+from parameterraum import MODEL_SPACE, PARAM_GRID, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
-from sklearn.model_selection import LeavePGroupsOut, GroupKFold
+from sklearn.model_selection import LeavePGroupsOut, GroupKFold, ParameterGrid
 from sklearn.base import clone
 from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
                              f1_score, accuracy_score, balanced_accuracy_score,
                              matthews_corrcoef, cohen_kappa_score
                              )
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from scipy.fft import rfft
 
@@ -33,13 +36,69 @@ DATA_CFGS = []
 EXT_IDX = 2
 FLEX_IDXS = [0, 1, 3]
 
-@dataclass
-class TrialRow:
-    subject_id: str
-    hand: str
-    trial_id: int
-    label: int
-    X: np.ndarray  # (N,4) float32
+def iter_param_dicts(obj) -> Iterable[dict[str, Any]]:
+    # erlaubt: list[dict], ParameterGrid, tuple/list leere dicts, etc.
+    if obj is None:
+        yield {}
+    elif isinstance(obj, ParameterGrid):
+        yield from obj
+    else:
+        # z.B. list[dict]
+        yield from obj
+
+def params_to_tuple(params: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
+    return tuple(sorted(params.items(), key=lambda kv: kv[0]))
+
+def build_model_cfgs(model_space: dict,
+                    *,
+                    validate_names: bool = True,
+                    validate_params_by_instantiation: bool = False) -> list[ModelConfig]:
+    allowed_types = {"supervised", "ann", "clustering"}
+    cfgs: list[ModelConfig] = []
+
+    for model_type, models in model_space.items():
+        if model_type not in allowed_types:
+            raise ValueError(f"Unknown model_type '{model_type}'. Allowed: {sorted(allowed_types)}")
+        for model_name, params_obj in models.items():
+            # --- name validation against registries ---
+            if validate_names:
+                if model_type in ("supervised", "ann"):
+                    if model_name not in MODELS_SUPERVISED:
+                        raise KeyError(f"Unknown model '{model_name}' for type '{model_type}'")
+                elif model_type == "clustering":
+                    if model_name not in MODELS_CLUSTERING:
+                        raise KeyError(f"Unknown clustering model '{model_name}'")
+            for params in iter_param_dicts(params_obj):
+                cfg = ModelConfig(
+                    model_name=model_name,
+                    model_type=model_type,
+                    params=params_to_tuple(params),
+                )
+                # --- check param names by instantiating model object ---
+                if validate_params_by_instantiation:
+                    try:
+                        if model_type in ("supervised", "ann"):
+                            _ = make_supervised_model(cfg)
+                        else:
+                            _ = make_clustering_model(cfg)
+                    except TypeError as e:
+                        raise TypeError(
+                            f"Bad params for {model_type}/{model_name}: {params}\nOriginal: {e}"
+                        ) from e
+
+                cfgs.append(cfg)
+
+    return cfgs
+
+def validate_model_cfg(cfg: ModelConfig):
+    if cfg.model_type in ("supervised", "ann"):
+        if cfg.model_name not in MODELS_SUPERVISED:
+            raise KeyError(f"Unknown supervised/ann model: {cfg.model_name}")
+    elif cfg.model_type == "clustering":
+        if cfg.model_name not in MODELS_CLUSTERING:
+            raise KeyError(f"Unknown clustering model: {cfg.model_name}")
+    else:
+        raise KeyError(f"Unknown model_type: {cfg.model_type}")
 
 def load_session(csv_path: Path) -> pd.DataFrame | None:
     #print(f"Loading session from {csv_path}")
@@ -170,6 +229,17 @@ def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
         })
     return pd.DataFrame(out)
 
+def majority_mapping(cluster_ids: np.ndarray, y: np.ndarray) -> dict[int, int]:
+    mapping = {}
+    for cid in np.unique(cluster_ids):
+        ys = y[cluster_ids == cid]
+        mapping[int(cid)] = int(Counter(ys).most_common(1)[0][0])
+    return mapping
+
+def map_clusters(cluster_ids: np.ndarray, mapping: dict[int,int]) -> np.ndarray:
+    default = next(iter(mapping.values()))
+    return np.array([mapping.get(int(c), default) for c in cluster_ids], dtype=int)
+
 def plot_cm(cm: np.ndarray, classes, out_path: str, title: str):
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
     disp.plot()
@@ -182,7 +252,7 @@ def eval_holdout(feature_df: pd.DataFrame,
                  train_subjects: set[str],
                  test_subjects: set[str],
                  hand: str,
-                 model_name: str,
+                 model_cfg: ModelConfig,
                  return_trials: bool = False) -> float | tuple[float, pd.DataFrame]:
     df = feature_df[feature_df["hand"] == hand].copy()
     df_tr = df[df["subject_id"].isin(train_subjects)]
@@ -199,10 +269,43 @@ def eval_holdout(feature_df: pd.DataFrame,
     y_tr = df_tr["label"].to_numpy(int)
     X_te = df_te[feat_cols].to_numpy(np.float32)
 
-    model = clone(MODELS_SUPERVISED[model_name]())
-    model.fit(X_tr, y_tr)
-    y_pred_win = model.predict(X_te)
+    # ---- supervised / ann ----
+    if model_cfg.model_type in ("supervised", "ann"):
+        model = clone(make_supervised_model(model_cfg))
+        model.fit(X_tr, y_tr)
+        y_pred_win = model.predict(X_te)
 
+    # ---- clustering ----
+    elif model_cfg.model_type == "clustering":
+        spec = MODELS_CLUSTERING[model_cfg.model_name]
+        clusterer = clone(make_clustering_model(model_cfg))
+
+        if spec.needs_scaling:
+            scaler = StandardScaler()
+            X_tr_s = scaler.fit_transform(X_tr)  # fit nur auf train!
+            X_te_s = scaler.transform(X_te)
+        else:
+            X_tr_s, X_te_s = X_tr, X_te
+
+        # cluster fit
+        clusterer.fit(X_tr_s)
+
+        # train cluster ids (für mapping)
+        if hasattr(clusterer, "predict"):
+            cl_tr = clusterer.predict(X_tr_s)
+            cl_te = clusterer.predict(X_te_s)
+        else:
+            # Fallback (bei manchen Clusterern gibt es kein predict)
+            cl_tr = clusterer.fit_predict(X_tr_s)
+            cl_te = clusterer.fit_predict(X_te_s)
+
+        mapping = majority_mapping(cl_tr, y_tr)
+        y_pred_win = map_clusters(cl_te, mapping)
+
+    else:
+        raise ValueError(f"Unknown model_type: {model_cfg.model_type}")
+
+    # ---- window -> trial aggregation ----
     df_pred = df_te[["subject_id", "session", "trial_id", "label"]].copy()
     df_pred["pred"] = y_pred_win
 
@@ -225,7 +328,7 @@ def inner_cv_score(feature_df: pd.DataFrame,
         tr_sub = set(subjects[tr_idx])
         va_sub = set(subjects[va_idx])
 
-        s = eval_holdout(feature_df, tr_sub, va_sub, hand=hand, model_name=model_name)
+        s = eval_holdout(feature_df, tr_sub, va_sub, hand=hand, model_cfg=model_name)
         scores.append(s)
 
     return float(np.nanmean(scores))
@@ -303,7 +406,7 @@ def nested_cv(meta: pd.DataFrame,
                 train_subjects=outer_train_set,
                 test_subjects=outer_test_set,
                 hand=hand,
-                model_name=best_model,
+                model_cfg=best_model,
                 return_trials = True
             )
 
@@ -341,6 +444,17 @@ def nested_cv(meta: pd.DataFrame,
 
     return results_df
 
+def make_supervised_model(model_cfg: ModelConfig):
+    spec = MODELS_SUPERVISED[model_cfg.model_name]
+    base = spec.make(**model_cfg.params_dict())
+    if spec.needs_scaling:
+        return Pipeline([("scaler", StandardScaler()), ("clf", base)])
+    return base
+
+def make_clustering_model(model_cfg: ModelConfig):
+    spec = MODELS_CLUSTERING[model_cfg.model_name]
+    return spec.make(**model_cfg.params_dict())
+
 def main():
     meta_path = Path("meta.csv")                # bleibt im repo/arbeitspfad
 
@@ -350,12 +464,7 @@ def main():
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
 
-    ''' this is for now not used
-    model_list = []
-    for model in TEST_MODELS["supervised"]:  # this is only tmp I have to get another loop with unsupervised and ANN
-        model_list.append(ModelConfig(model)) # TODO ACHTUNUG DAS HIER MUSS NOCH GEÄNDERT WERDEN UND ALLE ANDERE FUNKTIONEN
-        # model_type="supervised", # TODO after I implemented more models this should be used
-    '''
+    MODEL_CFGS = build_model_cfgs(MODEL_SPACE)
 
     for params in PARAM_GRID:
         for fs_name, fs in FEATURE_SET_LIBRARY.items():
