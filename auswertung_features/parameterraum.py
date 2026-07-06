@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from features import FeatureFn
 
 PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 100, "step": 25},
@@ -12,7 +13,7 @@ PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 300, "step": 50},
 ]
 
-TEST_MODELS = {
+TEST_MODELS = { # vllt 10?
     "supervised" : ["lda",
                     "randomForest",
                     "knn",
@@ -24,7 +25,7 @@ TEST_MODELS = {
     "ANN" : ["CNN"] # TODO wenn man mal Zeit hat
 }
 
-FEATURE_SETS = {
+FEATURE_SETS = { # 3 Feature Sets
     "time": ["rms",
              "wl",
              "p",
@@ -39,7 +40,7 @@ FEATURE_SETS = {
              "crest",
              "skew",
              "kurtosis",
-             "ratio_ext_flex",
+             #"ratio_ext_flex",
              ],
     "freq": ["max_freq",
              "sum_freq",
@@ -50,7 +51,13 @@ FEATURE_SETS = {
              ],
 }
 
-@dataclass
+FEATURE_SET_LIBRARY = {
+    "time_only": {"time": FEATURE_SETS["time"], "freq": []},
+    "freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
+    "time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]},
+}
+
+@dataclass(frozen=True)
 class model_config:
     model_name: str = "lda"
     model_type: str = "supervised"
@@ -58,4 +65,6 @@ class model_config:
     min_len: int  = 300
     win: int = 100
     step: int = 50
-    features: list | dict = field(default_factory=FEATURE_SETS)
+    feature_set_name: str = "time+freq"
+    time_feature_names: tuple[str, ...] = ("rms", "mav", "wl")
+    freq_feature_names: tuple[str,...] = ("mean_freq","sum_freq")

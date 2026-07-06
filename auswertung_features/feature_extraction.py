@@ -11,7 +11,7 @@ import json
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config
+from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config, FEATURE_SET_LIBRARY
 
 from sklearn.model_selection import LeavePGroupsOut
 from sklearn.base import clone
@@ -78,35 +78,37 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
 
     return trials
 
-def window_features(X: np.ndarray, feature_name_time: list,feature_name_freq: list, win: int = 100, step: int = 50, eps: float = 1e-8) -> np.ndarray:
-    """
-    X: (N,4) float32
-    returns: (n_windows, n_features)
-    Features: RMS(4) + WL(4) + p(4) + ratio_ext_flex(1) = 13
-    """
-    feats = []
+def window_features_named(X: np.ndarray, cfg: model_config, eps: float = 1e-8):
+    N, n_sensors = X.shape
+    out = []
+    time_names = list(cfg.time_feature_names)
+    freq_names = list(cfg.freq_feature_names)
 
-    N = X.shape[0]
-    for start in range(0, N - win + 1, step): # loop durch alle Werte. Start 0, Ende alle N Werte ohne den letzte win, wenn step größer ist als das letzte win dann wird komplett übersprungen
-        w = X[start:start + win] # window extrahieren
-        ft = rfft(w, axis=0)
-        s = (np.abs(ft) ** 2) / w.shape[0]
+    for start in range(0, N - cfg.win + 1, cfg.step):
+        w = X[start:start + cfg.win]
+        feats = {}
 
-        time_parts = [FEATURES_TIME[name](w, eps=eps) for name in feature_name_time]
-        freq_parts = [FEATURES_FREQ[name](s, eps=eps) for name in feature_name_freq]
+        for name in time_names:
+            v = np.asarray(FEATURES_TIME[name](w, eps=eps)).reshape(-1)
+            for si, val in enumerate(v):
+                feats[f"t_{name}_s{si}"] = float(val)
 
-        f = np.concatenate(time_parts+freq_parts, axis=0)
-        feats.append(f)
+        if freq_names:
+            ft = rfft(w, axis=0)
+            s = (np.abs(ft) ** 2) / w.shape[0]
+            for name in freq_names:
+                v = np.asarray(FEATURES_FREQ[name](s, eps=eps)).reshape(-1)
+                for si, val in enumerate(v):
+                    feats[f"f_{name}_s{si}"] = float(val)
 
-    if not feats:
-        return np.zeros((0, 13), dtype=np.float32) # falls keine Features 0 hinzufügen
+        out.append(feats)
 
-    return np.vstack(feats).astype(np.float32)  # rebuilded Array from a list as a vertical Array (1,N)
+    return out
 
 def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFrame:
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
-    :param model_cfg: Alle Daten die ausprobeirt werden sollen
+    :param model_cfg: Alle Daten, die ausprobiert werden sollen
     :return: dataframe mit den extractions features
     """
     rows = []
@@ -127,21 +129,20 @@ def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFr
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            F = window_features(X,FEATURE_SETS["time"],FEATURE_SETS["freq"], win=model_cfg.win, step=model_cfg.step)
+            win_dicts = window_features_named(X,model_cfg= model_cfg)
             # Falls nach Fensterung nix übrig bleibt -> skip
-            if F.shape[0] == 0:
+            if len(win_dicts) == 0:
                 continue
 
-            for widx in range(F.shape[0]): # neubau des Dataframe mit features
-                feat = F[widx]
+            for widx, feat_dict in enumerate(win_dicts): # neubau des Dataframe mit features
                 rows.append({
                     "subject_id": str(r["subject_id"]),
                     "hand": str(r["hand"]),
-                    "session": csv_path,
+                    "session": str(csv_path),
                     "trial_id": trial_id,
                     "label": y, # Klassenlabel
                     "widx": widx,
-                    **{f"f{j}": float(feat[j]) for j in range(feat.shape[0])}
+                    **feat_dict
                 })
 
     return pd.DataFrame(rows)
@@ -172,7 +173,8 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model_cfg: model_config):
         print(f"No data for hand={hand}")
         return
 
-    X = df[[c for c in df.columns if c.startswith("f")]].to_numpy(dtype=np.float32) # suche nach den feature columns. Starten mit "f"
+    feat_cols = [c for c in df.columns if c.startswith("t_") or c.startswith("f_")]
+    X = df[feat_cols].to_numpy(dtype=np.float32) # suche nach den feature columns. Starten mit "f"
     y = df["label"].to_numpy(dtype=int) # suche nach blocklabel
     groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
@@ -299,36 +301,43 @@ def main():
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
 
+    config_list = []
+
     for model in TEST_MODELS["supervised"]: # this is only tmp I have to get another loop with unsupervised and ANN
         for params in PARAM_GRID:
-            model_cfg = model_config(
+            for fs_name, fs in FEATURE_SET_LIBRARY.items():
+                config_list.append(model_config(
                 model_name=model,
                 #model_type="supervised", # TODO after I implemented more models this should be used
                 trim= params["trim"],
                 min_len= params["min_len"],
                 win= params["win"],
                 step= params["step"],
-                features = FEATURE_SETS,
+                feature_set_name = fs_name,
+                time_feature_names = tuple(fs["time"]),
+                freq_feature_names = tuple(fs["freq"]),
+                )
             )
 
-            # Features bauen
-            feat_df = build_feature_table(
-            meta=meta,
-            model_cfg=model_cfg,
-            )
+    for model_cfg in config_list:
+        # Features bauen
+        feat_df = build_feature_table(
+        meta=meta,
+        model_cfg=model_cfg,
+        )
 
-            print("Feature table shape:", feat_df.shape)
-            print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
+        print("Feature table shape:", feat_df.shape)
+        print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
 
-            # LOSO getrennt für l und r
-            # gleichzeitiger Test mehrerer supervised Modelle
+        # LOSO getrennt für l und r
+        # gleichzeitiger Test mehrerer supervised Modelle
 
-            run_loso(feat_df, hand="l",model_cfg=model_cfg)
-            run_loso(feat_df, hand="r",model_cfg=model_cfg)
+        run_loso(feat_df, hand="l",model_cfg=model_cfg)
+        run_loso(feat_df, hand="r",model_cfg=model_cfg)
 
-    df_summary = pd.read_csv("result_summary.csv")
+    df_summary = pd.read_csv("results_summary.csv")
     df_sorted = df_summary.sort_values("f1_macro_mean", ascending=False)
-    df_sorted.to_csv("result_summary.csv", index=False)
+    df_sorted.to_csv("results_summary.csv", index=False)
 
 if __name__ == "__main__":
     main()
