@@ -8,14 +8,15 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 import json
+from collections import defaultdict
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config, FEATURE_SET_LIBRARY
+from parameterraum import TEST_MODELS, PARAM_GRID, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
-from sklearn.model_selection import LeavePGroupsOut
+from sklearn.model_selection import LeavePGroupsOut, GroupKFold
 from sklearn.base import clone
-from sklearn.metrics import (confusion_matrix, classification_report, ConfusionMatrixDisplay,
+from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
                              f1_score, accuracy_score, balanced_accuracy_score,
                              matthews_corrcoef, cohen_kappa_score
                              )
@@ -25,6 +26,8 @@ from scipy.fft import rfft
 LABEL_COL = "Aktueller Finger"
 TIME_COL = "timestamp_ms"
 SENSORS = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
+
+DATA_CFGS = []
 
 # Sensor 2 ist Gegenseite (Extensor-Seite)
 EXT_IDX = 2
@@ -78,7 +81,7 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
 
     return trials
 
-def window_features_named(X: np.ndarray, cfg: model_config, eps: float = 1e-8):
+def window_features_named(X: np.ndarray, cfg: DataConfig, eps: float = 1e-8):
     N, n_sensors = X.shape
     out = []
     time_names = list(cfg.time_feature_names)
@@ -105,10 +108,10 @@ def window_features_named(X: np.ndarray, cfg: model_config, eps: float = 1e-8):
 
     return out
 
-def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFrame:
+def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig) -> pd.DataFrame:
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
-    :param model_cfg: Alle Daten, die ausprobiert werden sollen
+    :param data_cfg: Alle Daten, die ausprobiert werden sollen
     :return: dataframe mit den extractions features
     """
     rows = []
@@ -120,7 +123,7 @@ def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFr
         if df is None:
             continue
 
-        blocks = split_into_label_blocks(df, trim=model_cfg.trim, min_len=model_cfg.min_len)
+        blocks = split_into_label_blocks(df, trim=data_cfg.trim, min_len=data_cfg.min_len)
 
         # Check: idealerweise genau 5 Blöcke (0..4)
         # Wenn nicht, loggen (nicht zwingend skippen).
@@ -129,7 +132,7 @@ def build_feature_table(meta: pd.DataFrame,model_cfg: model_config) -> pd.DataFr
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            win_dicts = window_features_named(X,model_cfg= model_cfg)
+            win_dicts = window_features_named(X, cfg= data_cfg)
             # Falls nach Fensterung nix übrig bleibt -> skip
             if len(win_dicts) == 0:
                 continue
@@ -167,132 +170,178 @@ def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
         })
     return pd.DataFrame(out)
 
-def run_loso(feature_df: pd.DataFrame, hand: str, model_cfg: model_config):
-    df = feature_df[feature_df["hand"] == hand].copy() # Extraction of the hand (l or r)
-    if df.empty:
-        print(f"No data for hand={hand}")
-        return
+def plot_cm(cm: np.ndarray, classes, out_path: str, title: str):
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
+    disp.plot()
+    disp.ax_.set_title(title)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    disp.figure_.savefig(out_path, format="svg")
+    plt.close(disp.figure_)
+
+def eval_holdout(feature_df: pd.DataFrame,
+                 train_subjects: set[str],
+                 test_subjects: set[str],
+                 hand: str,
+                 model_name: str,
+                 return_trials: bool = False) -> float | tuple[float, pd.DataFrame]:
+    df = feature_df[feature_df["hand"] == hand].copy()
+    df_tr = df[df["subject_id"].isin(train_subjects)]
+    df_te = df[df["subject_id"].isin(test_subjects)]
+
+    if df_tr.empty or df_te.empty:
+        if return_trials:
+            return float("nan"), pd.DataFrame(columns=["subject_id", "session", "trial_id", "true", "pred"])
+        return float("nan")
 
     feat_cols = [c for c in df.columns if c.startswith("t_") or c.startswith("f_")]
-    X = df[feat_cols].to_numpy(dtype=np.float32) # suche nach den feature columns. Starten mit "f"
-    y = df["label"].to_numpy(dtype=int) # suche nach blocklabel
-    groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
-    labels = np.sort(df["label"].unique())
+    X_tr = df_tr[feat_cols].to_numpy(np.float32)
+    y_tr = df_tr["label"].to_numpy(int)
+    X_te = df_te[feat_cols].to_numpy(np.float32)
 
-    run_id = (
-        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_"
-        f"{model_cfg.model_name}_{hand}_"
-        f"trim{model_cfg.trim}_minlen{model_cfg.min_len}_win{model_cfg.win}_step{model_cfg.step}"
-    )
+    model = clone(MODELS_SUPERVISED[model_name]())
+    model.fit(X_tr, y_tr)
+    y_pred_win = model.predict(X_te)
 
-    logo = LeavePGroupsOut(2) # Provides train/test split by letting one out of the groups
+    df_pred = df_te[["subject_id", "session", "trial_id", "label"]].copy()
+    df_pred["pred"] = y_pred_win
 
-    fold_rows = []
-    cm_total = None
+    trial_df = trial_level_vote(df_pred)    # columns: subject_id, session, trial_id, true, pred
+    score = float(f1_score(trial_df["true"], trial_df["pred"], average="macro", zero_division=0))
+    if return_trials:
+        return score, trial_df
+    return score
 
-    base_model = MODELS_SUPERVISED[model_cfg.model_name]()
+def inner_cv_score(feature_df: pd.DataFrame,
+                   subjects_train_outer: list[str],
+                   hand: str,
+                   model_name: str,
+                   n_splits: int = 4) -> float:
+    subjects = np.array(subjects_train_outer)
+    cv = GroupKFold(n_splits=n_splits)
 
-    # window-level predictions sammeln
-    for fold_i, (train_idx, test_idx) in enumerate(logo.split(X, y, groups=groups)):
-        model = clone(base_model)  # pro Fold neu!
-        model.fit(X[train_idx], y[train_idx])
-        y_pred_win = model.predict(X[test_idx])
+    scores = []
+    for tr_idx, va_idx in cv.split(subjects, groups=subjects):
+        tr_sub = set(subjects[tr_idx])
+        va_sub = set(subjects[va_idx])
 
-        df_pred_fold = df.iloc[test_idx][["subject_id", "session", "trial_id", "label"]].copy()
-        df_pred_fold["pred"] = y_pred_win
+        s = eval_holdout(feature_df, tr_sub, va_sub, hand=hand, model_name=model_name)
+        scores.append(s)
 
-        trial_df_fold = trial_level_vote(df_pred_fold)  # -> true, pred
+    return float(np.nanmean(scores))
 
-        metrics = eval_trial_fold(trial_df_fold, classes=labels)
-        cm_total = metrics["_cm"] if cm_total is None else (cm_total + metrics["_cm"])
 
-        # Meta/Parameter dazu
-        metrics.update({
-            "run_id": run_id,
-            "model_name": model_cfg.model_name,
-            "hand": hand,
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "level": "trial",
-            "fold": int(fold_i),
-            "trim": model_cfg.trim,
-            "min_len": model_cfg.min_len,
-            "win": model_cfg.win,
-            "step": model_cfg.step,
-        })
+def nested_cv(meta: pd.DataFrame,
+              hands=("l","r"),
+              outer_splits=5,
+              inner_splits=4,
+              classes = (0, 1, 2, 3, 4),
+              plot_per_outer_fold: bool = False):
 
-        append_row_csv(metrics, "results_folds.csv")
-        fold_rows.append(metrics)
+    subjects_all = np.array(sorted(meta["subject_id"].astype(str).unique()))
+    outer_cv = GroupKFold(n_splits=outer_splits)
 
-    # Summary schreiben
-    summary = summarize_folds(fold_rows)
-    summary.update({
-        "run_id": run_id,
-        "model_name": model_cfg.model_name,
-        "hand": hand,
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "level": "trial",
-        "trim": model_cfg.trim,
-        "min_len": model_cfg.min_len,
-        "win": model_cfg.win,
-        "step": model_cfg.step,
-        "n_splits": logo.get_n_splits(X, y, groups),
-    })
-    append_row_csv(summary, "results_summary.csv")
+    results = []
 
-    plot_cm(cm_total, labels, run_id, model_cfg = model_cfg)
+    # Cache: pro data_cfg die Feature-Tabelle einmal bauen
+    feature_cache: dict[DataConfig, pd.DataFrame] = {}
+    # Aggregierte CMs pro Hand über alle Outer-Folds
+    cm_total = {hand: np.zeros((len(classes), len(classes)), dtype=int) for hand in hands}
 
-def plot_cm(cm, classes, run_id:str, model_cfg: model_config):
-    disp2 = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
-    disp2.plot()
-    disp2.ax_.set_title(f"Confusion Matrix (CV sum) {model_cfg.model_name}")
+    for outer_fold, (tr_idx, te_idx) in enumerate(outer_cv.split(subjects_all, groups=subjects_all)):
+        outer_train_sub = subjects_all[tr_idx].tolist()
+        outer_test_sub  = subjects_all[te_idx].tolist()
 
-    # making sure the subdir exist
-    script_dir = os.path.dirname(__file__)
-    results_dir = os.path.join(script_dir, f'result_plots/{model_cfg.model_name}')
-    if not os.path.isdir(results_dir):
-        os.makedirs(results_dir)
+        outer_train_set = set(outer_train_sub)
+        outer_test_set  = set(outer_test_sub)
 
-    disp2.figure_.savefig(f"result_plots/{model_cfg.model_name}/{run_id}", format="svg")
-    plt.close(disp2.figure_)
+        for hand in hands:
+            # 1) Inner selection: best (data_cfg, model) on outer-train
+            best = None
+            best_score = -1.0
 
-def eval_trial_fold(trial_df: pd.DataFrame, classes):
-    """trial_df hat Spalten: true, pred"""
-    y_true = trial_df["true"].to_numpy()
-    y_pred = trial_df["pred"].to_numpy()
+            for dcfg in DATA_CFGS:
+                if dcfg not in feature_cache:
+                    feature_cache[dcfg] = build_feature_table(meta=meta, data_cfg=dcfg)
 
-    cm = confusion_matrix(y_true, y_pred, labels=classes)
+                feat_df = feature_cache[dcfg]
 
-    return {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
-        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
-        "f1_weighted": float(f1_score(y_true, y_pred, average="weighted", zero_division=0)),
-        "mcc": float(matthews_corrcoef(y_true, y_pred)),
-        "kappa": float(cohen_kappa_score(y_true, y_pred)),
-        "n_trials": int(len(trial_df)),
-        "cm_json": json.dumps(cm.tolist()),
-        "_cm": cm,  # intern, nicht in CSV schreiben
-    }
+                for model_name in TEST_MODELS["supervised"]:
+                    score = inner_cv_score(
+                        feat_df,
+                        subjects_train_outer=outer_train_sub,
+                        hand=hand,
+                        model_name=model_name,
+                        n_splits=inner_splits
+                    )
 
-def append_row_csv(row: dict, path: str):
-    d = dict(row)
-    d.pop("_cm", None)
-    df = pd.DataFrame([d])
-    df.to_csv(path, mode="a", header=not os.path.exists(path), index=False)
+                    if score > best_score:
+                        best_score = score
+                        best = (dcfg, model_name)
 
-def summarize_folds(fold_rows, keys=("accuracy","balanced_accuracy","f1_macro","f1_weighted","mcc","kappa")):
-    out = {}
-    for k in keys:
-        vals = np.array([r[k] for r in fold_rows], dtype=float)
-        out[f"{k}_mean"] = float(vals.mean())
-        out[f"{k}_std"]  = float(vals.std(ddof=1)) if len(vals) > 1 else 0.0
-    out["n_folds"] = int(len(fold_rows))
-    out["n_trials_total"] = int(sum(r["n_trials"] for r in fold_rows))
-    return out
+                if best is None:
+                    # sollte praktisch nicht passieren, aber robust bleiben
+                    results.append({
+                        "outer_fold": outer_fold,
+                        "hand": hand,
+                        "best_model": None,
+                        "best_feature_set": None,
+                        "best_win": None,
+                        "best_step": None,
+                        "best_trim": None,
+                        "best_min_len": None,
+                        "best_inner_score": None,
+                        "outer_score": None,
+                    })
+                    continue
+
+            # 2) Outer evaluation: evaluate best on outer-test
+            best_dcfg, best_model = best
+            feat_df_best = feature_cache[best_dcfg]
+            outer_score, trial_df = eval_holdout(
+                feat_df_best,
+                train_subjects=outer_train_set,
+                test_subjects=outer_test_set,
+                hand=hand,
+                model_name=best_model,
+                return_trials = True
+            )
+
+            cm = confusion_matrix(trial_df["true"], trial_df["pred"], labels=list(classes))
+            cm_total[hand] += cm
+
+            if plot_per_outer_fold:
+                title = (f"NestedCV outer{outer_fold} {hand} | {best_model} | "
+                         f"{best_dcfg.feature_set_name} win{best_dcfg.win} step{best_dcfg.step} "
+                         f"trim{best_dcfg.trim} minlen{best_dcfg.min_len}")
+                out_path = (f"result_plots/nested/outer_folds/"
+                            f"{hand}/outer{outer_fold}_{best_model}_{best_dcfg.feature_set_name}_"
+                            f"win{best_dcfg.win}_step{best_dcfg.step}.svg")
+                plot_cm(cm, classes, out_path, title)
+
+            results.append({
+                "outer_fold": outer_fold,
+                "hand": hand,
+                "best_model": best_model,
+                "best_feature_set": best_dcfg.feature_set_name,
+                "best_win": best_dcfg.win,
+                "best_step": best_dcfg.step,
+                "best_trim": best_dcfg.trim,
+                "best_min_len": best_dcfg.min_len,
+                "best_inner_score": best_score,
+                "outer_score": outer_score,
+                "n_trials_outer": int(len(trial_df)),
+            })
+    results_df = pd.DataFrame(results)
+    # Gesamt-CM plotten
+    for hand in hands:
+        out_path = f"result_plots/cm_total_{hand}.svg"
+        title = f"NestedCV total CM ({hand}) | outer_splits={outer_splits}"
+        plot_cm(cm_total[hand], classes, out_path, title)
+
+    return results_df
 
 def main():
-
     meta_path = Path("meta.csv")                # bleibt im repo/arbeitspfad
 
     meta = pd.read_csv(meta_path) # Einlesen von den metadaten
@@ -301,14 +350,16 @@ def main():
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
 
-    config_list = []
+    ''' this is for now not used
+    model_list = []
+    for model in TEST_MODELS["supervised"]:  # this is only tmp I have to get another loop with unsupervised and ANN
+        model_list.append(ModelConfig(model)) # TODO ACHTUNUG DAS HIER MUSS NOCH GEÄNDERT WERDEN UND ALLE ANDERE FUNKTIONEN
+        # model_type="supervised", # TODO after I implemented more models this should be used
+    '''
 
-    for model in TEST_MODELS["supervised"]: # this is only tmp I have to get another loop with unsupervised and ANN
-        for params in PARAM_GRID:
-            for fs_name, fs in FEATURE_SET_LIBRARY.items():
-                config_list.append(model_config(
-                model_name=model,
-                #model_type="supervised", # TODO after I implemented more models this should be used
+    for params in PARAM_GRID:
+        for fs_name, fs in FEATURE_SET_LIBRARY.items():
+            DATA_CFGS.append(DataConfig(
                 trim= params["trim"],
                 min_len= params["min_len"],
                 win= params["win"],
@@ -316,28 +367,18 @@ def main():
                 feature_set_name = fs_name,
                 time_feature_names = tuple(fs["time"]),
                 freq_feature_names = tuple(fs["freq"]),
-                )
-            )
+            ))
 
-    for model_cfg in config_list:
-        # Features bauen
-        feat_df = build_feature_table(
-        meta=meta,
-        model_cfg=model_cfg,
-        )
+    df_nested = nested_cv(meta, outer_splits=5, inner_splits=4, plot_per_outer_fold=False)
+    df_nested.to_csv("results_nested.csv", index=False)
 
-        print("Feature table shape:", feat_df.shape)
-        print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
-
-        # LOSO getrennt für l und r
-        # gleichzeitiger Test mehrerer supervised Modelle
-
-        run_loso(feat_df, hand="l",model_cfg=model_cfg)
-        run_loso(feat_df, hand="r",model_cfg=model_cfg)
-
-    df_summary = pd.read_csv("results_summary.csv")
-    df_sorted = df_summary.sort_values("f1_macro_mean", ascending=False)
-    df_sorted.to_csv("results_summary.csv", index=False)
+    #zusammenfassen
+    df_nested_summary = (df_nested
+                         .dropna(subset=["outer_score"])
+                         .groupby(["hand"])["outer_score"]
+                         .agg(["mean", "std", "count"])
+                         .reset_index())
+    df_nested_summary.to_csv("results_nested_summary.csv", index=False)
 
 if __name__ == "__main__":
     main()

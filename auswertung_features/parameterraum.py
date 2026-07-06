@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from features import FeatureFn
+from dataclasses import dataclass
+from typing import Tuple
 
 PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 100, "step": 25},
@@ -58,13 +58,16 @@ FEATURE_SET_LIBRARY = {
 }
 
 @dataclass(frozen=True)
-class model_config:
-    model_name: str = "lda"
-    model_type: str = "supervised"
-    trim: int = 50
-    min_len: int  = 300
-    win: int = 100
-    step: int = 50
-    feature_set_name: str = "time+freq"
-    time_feature_names: tuple[str, ...] = ("rms", "mav", "wl")
-    freq_feature_names: tuple[str,...] = ("mean_freq","sum_freq")
+class DataConfig:
+    trim: int
+    min_len: int
+    win: int
+    step: int
+    feature_set_name: str
+    time_feature_names: Tuple[str, ...]
+    freq_feature_names: Tuple[str, ...]
+
+@dataclass(frozen=True)
+class ModelConfig:
+    model_name: str
+    #model_type: str # später für supervised/unsupervised etc
