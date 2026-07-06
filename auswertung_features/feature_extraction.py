@@ -7,14 +7,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 import os
+import json
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
 from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config
 
 from sklearn.model_selection import LeaveOneGroupOut, LeavePGroupsOut
-
-from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay, f1_score, accuracy_score
+from sklearn.base import clone
+from sklearn.metrics import (confusion_matrix, classification_report, ConfusionMatrixDisplay,
+                             f1_score, accuracy_score, balanced_accuracy_score,
+                             matthews_corrcoef, cohen_kappa_score
+                             )
 
 from scipy.fft import rfft
 
@@ -172,47 +176,73 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model_cfg: model_config):
     y = df["label"].to_numpy(dtype=int) # suche nach blocklabel
     groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
+    labels = np.sort(df["label"].unique())
+
+    run_id = (
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_"
+        f"{model_cfg.model_name}_{hand}_"
+        f"trim{model_cfg.trim}_minlen{model_cfg.min_len}_win{model_cfg.win}_step{model_cfg.step}"
+    )
+
     logo = LeavePGroupsOut(2) # Provides train/test split by letting one out of the groups
-    model = MODELS_SUPERVISED[model_cfg.model_name]()
+
+    fold_rows = []
+    cm_total = None
 
     # window-level predictions sammeln
-    preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
-    for train_idx, test_idx in logo.split(X, y, groups=groups): # using logo to split and train model
+    for fold_i, (train_idx, test_idx) in enumerate(logo.split(X, y, groups=groups)):
+        model = MODELS_SUPERVISED[model_cfg.model_name]()  # pro Fold neu!
         model.fit(X[train_idx], y[train_idx])
-        preds[test_idx] = model.predict(X[test_idx]) # look at the test_idx
 
-    df_pred = df[["subject_id", "session", "trial_id", "label"]].copy()
-    df_pred["pred"] = preds # adding the prediction in a new df
+        y_pred_win = model.predict(X[test_idx])
 
-    # trial-level voting
-    trial_df = trial_level_vote(df_pred)  # majority vote der sliding windows
+        df_pred_fold = df.iloc[test_idx][["subject_id", "session", "trial_id", "label"]].copy()
+        df_pred_fold["pred"] = y_pred_win
 
-    labels = [0,1,2,3,4]
-    cm = confusion_matrix(trial_df["true"], trial_df["pred"], labels=labels)
-    print(f"\n=== HAND {hand}: Trial-level Confusion Matrix (labels 0..4) ===")
-    print(cm)
+        trial_df_fold = trial_level_vote(df_pred_fold)  # -> true, pred
 
-    print(f"\n=== HAND {hand}: Trial-level report ===") # precision ist wie oft richtig, recall sensitivität wie viele der richtigen wenn wirklich richtig, F1 Mittelwert-Kompromiss aus precision & recall
-    print(classification_report(trial_df["true"], trial_df["pred"], labels=labels, digits=3))
+        metrics = eval_trial_fold(trial_df_fold, classes=labels)
+        cm_total = metrics["_cm"] if cm_total is None else (cm_total + metrics["_cm"])
 
-    showAccuracyAndCM(trial_df["true"], trial_df["pred"], labels, model_cfg = model_cfg)
+        # Meta/Parameter dazu
+        metrics.update({
+            "run_id": run_id,
+            "model_name": model_cfg.model_name,
+            "hand": hand,
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "level": "trial",
+            "fold": int(fold_i),
+            "trim": model_cfg.trim,
+            "min_len": model_cfg.min_len,
+            "win": model_cfg.win,
+            "step": model_cfg.step,
+        })
 
-    # Fokus: klein (0) vs ring (1)
-    mask01 = trial_df["true"].isin([0,1])
-    if mask01.any():
-        cm01 = confusion_matrix(trial_df.loc[mask01,"true"], trial_df.loc[mask01,"pred"], labels=[0,1])
-        print(f"\n=== HAND {hand}: Fokus 0<->1 (klein<->ring) ===")
-        print(cm01)
+        append_row_csv(metrics, "results_folds.csv")
+        fold_rows.append(metrics)
 
-def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes, model_cfg: model_config):
-    #TODO Change function to save cm and write into a kind of a result.csv
-    print("accuracy_score:  " + str(accuracy_score(fingerLabelArray, predictedLabels)))
-    print("F1-Score: " + str(f1_score(fingerLabelArray, predictedLabels, average=None, zero_division=0)))
-    #print(classification_report(fingerLabelArray, predictedLabels, zero_division=0))
-    cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
-    disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
+    # Summary schreiben
+    summary = summarize_folds(fold_rows)
+    summary.update({
+        "run_id": run_id,
+        "model_name": model_cfg.model_name,
+        "hand": hand,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "level": "trial",
+        "trim": model_cfg.trim,
+        "min_len": model_cfg.min_len,
+        "win": model_cfg.win,
+        "step": model_cfg.step,
+        "n_splits": logo.get_n_splits(X, y, groups),
+    })
+    append_row_csv(summary, "results_summary.csv")
+
+    plot_cm(cm_total, labels, run_id, model_cfg = model_cfg)
+
+def plot_cm(cm, classes, run_id:str, model_cfg: model_config):
+    disp2 = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
     disp2.plot()
-    disp2.ax_.set_title(f"Confusion Matrix {model_cfg.model_name}")
+    disp2.ax_.set_title(f"Confusion Matrix (CV sum) {model_cfg.model_name}")
 
     # making sure the subdir exist
     script_dir = os.path.dirname(__file__)
@@ -220,13 +250,43 @@ def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes, model_cfg: mod
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
 
-    figure_name= (f"{datetime.today().strftime('%Y-%m-%d')}_"
-                  f"{model_cfg.model_name}_"
-                  f"trim{model_cfg.trim}_"
-                  f"min-len{model_cfg.min_len}_"
-                  f"win{model_cfg.win}_step{model_cfg.step}.svg")
-    disp2.figure_.savefig(f"result_plots/{model_cfg.model_name}/{figure_name}", format="svg")
+    disp2.figure_.savefig(f"result_plots/{model_cfg.model_name}/{run_id}", format="svg")
+    plt.close(disp2.figure_)
 
+def eval_trial_fold(trial_df: pd.DataFrame, classes):
+    """trial_df hat Spalten: true, pred"""
+    y_true = trial_df["true"].to_numpy()
+    y_pred = trial_df["pred"].to_numpy()
+
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+
+    return {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "f1_weighted": float(f1_score(y_true, y_pred, average="weighted", zero_division=0)),
+        "mcc": float(matthews_corrcoef(y_true, y_pred)),
+        "kappa": float(cohen_kappa_score(y_true, y_pred)),
+        "n_trials": int(len(trial_df)),
+        "cm_json": json.dumps(cm.tolist()),
+        "_cm": cm,  # intern, nicht in CSV schreiben
+    }
+
+def append_row_csv(row: dict, path: str):
+    d = dict(row)
+    d.pop("_cm", None)
+    df = pd.DataFrame([d])
+    df.to_csv(path, mode="a", header=not os.path.exists(path), index=False)
+
+def summarize_folds(fold_rows, keys=("accuracy","balanced_accuracy","f1_macro","f1_weighted","mcc","kappa")):
+    out = {}
+    for k in keys:
+        vals = np.array([r[k] for r in fold_rows], dtype=float)
+        out[f"{k}_mean"] = float(vals.mean())
+        out[f"{k}_std"]  = float(vals.std(ddof=1)) if len(vals) > 1 else 0.0
+    out["n_folds"] = int(len(fold_rows))
+    out["n_trials_total"] = int(sum(r["n_trials"] for r in fold_rows))
+    return out
 
 def main():
 
