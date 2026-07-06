@@ -5,21 +5,17 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
 import os
-import json
-import itertools
 from collections import Counter
 
 from models import MODELS_SUPERVISED, MODELS_CLUSTERING
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import MODEL_SPACE, PARAM_GRID, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
+from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
-from sklearn.model_selection import LeavePGroupsOut, GroupKFold, ParameterGrid
+from sklearn.model_selection import GroupKFold, ParameterGrid
 from sklearn.base import clone
 from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
-                             f1_score, accuracy_score, balanced_accuracy_score,
-                             matthews_corrcoef, cohen_kappa_score
+                             f1_score,
                              )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -30,7 +26,6 @@ LABEL_COL = "Aktueller Finger"
 TIME_COL = "timestamp_ms"
 SENSORS = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
 
-DATA_CFGS = []
 
 # Sensor 2 ist Gegenseite (Extensor-Seite)
 EXT_IDX = 2
@@ -48,6 +43,35 @@ def iter_param_dicts(obj) -> Iterable[dict[str, Any]]:
 
 def params_to_tuple(params: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
     return tuple(sorted(params.items(), key=lambda kv: kv[0]))
+
+def build_data_cfgs(data_param_list, feature_set_library) -> list[DataConfig]:
+    out: list[DataConfig] = []
+
+    # param_list stabil sortieren, falls sie aus Filtern kommt
+    data_param_list = sorted(
+        data_param_list,
+        key=lambda p: (p["trim"], p["min_len"], p["win"], p["step"])
+    )
+
+    # feature sets stabil sortieren nach Name
+    for p in data_param_list:
+        for fs_name in sorted(feature_set_library.keys()):
+            fs = feature_set_library[fs_name]
+
+            # Kanonisierung, damit Cache-Key stabil ist
+            time_feats = tuple(sorted(fs.get("time", [])))
+            freq_feats = tuple(sorted(fs.get("freq", [])))
+
+            out.append(DataConfig(
+                trim=p["trim"],
+                min_len=p["min_len"],
+                win=p["win"],
+                step=p["step"],
+                feature_set_name=fs_name,
+                time_feature_names=time_feats,
+                freq_feature_names=freq_feats,
+            ))
+    return out
 
 def build_model_cfgs(model_space: dict,
                     *,
@@ -318,7 +342,7 @@ def eval_holdout(feature_df: pd.DataFrame,
 def inner_cv_score(feature_df: pd.DataFrame,
                    subjects_train_outer: list[str],
                    hand: str,
-                   model_name: str,
+                   model: ModelConfig,
                    n_splits: int = 4) -> float:
     subjects = np.array(subjects_train_outer)
     cv = GroupKFold(n_splits=n_splits)
@@ -328,13 +352,15 @@ def inner_cv_score(feature_df: pd.DataFrame,
         tr_sub = set(subjects[tr_idx])
         va_sub = set(subjects[va_idx])
 
-        s = eval_holdout(feature_df, tr_sub, va_sub, hand=hand, model_cfg=model_name)
+        s = eval_holdout(feature_df, tr_sub, va_sub, hand=hand, model_cfg=model)
         scores.append(s)
 
     return float(np.nanmean(scores))
 
 
 def nested_cv(meta: pd.DataFrame,
+              model_cfgs: list[ModelConfig],
+              data_cfgs: list[DataConfig],
               hands=("l","r"),
               outer_splits=5,
               inner_splits=4,
@@ -363,40 +389,40 @@ def nested_cv(meta: pd.DataFrame,
             best = None
             best_score = -1.0
 
-            for dcfg in DATA_CFGS:
+            for dcfg in data_cfgs:
                 if dcfg not in feature_cache:
                     feature_cache[dcfg] = build_feature_table(meta=meta, data_cfg=dcfg)
 
                 feat_df = feature_cache[dcfg]
 
-                for model_name in TEST_MODELS["supervised"]:
+                for model in model_cfgs:
                     score = inner_cv_score(
                         feat_df,
                         subjects_train_outer=outer_train_sub,
                         hand=hand,
-                        model_name=model_name,
+                        model=model,
                         n_splits=inner_splits
                     )
 
                     if score > best_score:
                         best_score = score
-                        best = (dcfg, model_name)
+                        best = (dcfg, model)
 
-                if best is None:
-                    # sollte praktisch nicht passieren, aber robust bleiben
-                    results.append({
-                        "outer_fold": outer_fold,
-                        "hand": hand,
-                        "best_model": None,
-                        "best_feature_set": None,
-                        "best_win": None,
-                        "best_step": None,
-                        "best_trim": None,
-                        "best_min_len": None,
-                        "best_inner_score": None,
-                        "outer_score": None,
-                    })
-                    continue
+            if best is None:
+                # sollte praktisch nicht passieren, aber robust bleiben
+                results.append({
+                    "outer_fold": outer_fold,
+                    "hand": hand,
+                    "best_model": None,
+                    "best_feature_set": None,
+                    "best_win": None,
+                    "best_step": None,
+                    "best_trim": None,
+                    "best_min_len": None,
+                    "best_inner_score": None,
+                    "outer_score": None,
+                })
+                continue
 
             # 2) Outer evaluation: evaluate best on outer-test
             best_dcfg, best_model = best
@@ -466,19 +492,9 @@ def main():
 
     MODEL_CFGS = build_model_cfgs(MODEL_SPACE)
 
-    for params in PARAM_GRID:
-        for fs_name, fs in FEATURE_SET_LIBRARY.items():
-            DATA_CFGS.append(DataConfig(
-                trim= params["trim"],
-                min_len= params["min_len"],
-                win= params["win"],
-                step= params["step"],
-                feature_set_name = fs_name,
-                time_feature_names = tuple(fs["time"]),
-                freq_feature_names = tuple(fs["freq"]),
-            ))
+    DATA_CFGS = list(dict.fromkeys(build_data_cfgs(DATA_PARAM_LIST, FEATURE_SET_LIBRARY)))
 
-    df_nested = nested_cv(meta, outer_splits=5, inner_splits=4, plot_per_outer_fold=False)
+    df_nested = nested_cv(meta, MODEL_CFGS,DATA_CFGS, outer_splits=5, inner_splits=4, plot_per_outer_fold=False)
     df_nested.to_csv("results_nested.csv", index=False)
 
     #zusammenfassen
@@ -488,6 +504,31 @@ def main():
                          .agg(["mean", "std", "count"])
                          .reset_index())
     df_nested_summary.to_csv("results_nested_summary.csv", index=False)
+
+    # Gewinner-Häufigkeiten
+    model_freq = (df_nested
+                  .groupby("hand")["best_model"]
+                  .value_counts()
+                  .rename("n")
+                  .reset_index())
+    model_freq.to_csv("results_nested_winner_models.csv", index=False)
+
+    fs_freq = (df_nested
+               .groupby("hand")["best_feature_set"]
+               .value_counts()
+               .rename("n")
+               .reset_index())
+    fs_freq.to_csv("results_nested_winner_featuresets.csv", index=False)
+
+    # Parameterhäufigkeiten (Window/Step/Trim/MinLen)
+    param_freq = (df_nested
+                  .groupby(["hand", "best_win", "best_step", "best_trim", "best_min_len"])
+                  .size()
+                  .rename("n")
+                  .reset_index()
+                  .sort_values(["hand", "n"], ascending=[True, False]))
+    param_freq.to_csv("results_nested_winner_params.csv", index=False)
+
 
 if __name__ == "__main__":
     main()

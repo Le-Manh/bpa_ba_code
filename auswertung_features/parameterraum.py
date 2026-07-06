@@ -2,17 +2,23 @@ from dataclasses import dataclass, field
 from typing import Tuple, Any
 from sklearn.model_selection import ParameterGrid
 
-PARAM_GRID = [
-    {"trim": 25, "min_len": 300, "win": 100, "step": 25},
-    {"trim": 25, "min_len": 300, "win": 100, "step": 50},
-    {"trim": 50, "min_len": 300, "win": 100, "step": 100},
-    {"trim": 50, "min_len": 300, "win": 200, "step": 50},
-    {"trim": 50, "min_len": 300, "win": 200, "step": 100},
-    {"trim": 50, "min_len": 300, "win": 250, "step": 50},
-    {"trim": 50, "min_len": 300, "win": 250, "step": 100},
-    {"trim": 50, "min_len": 300, "win": 300, "step": 100},
-    {"trim": 25, "min_len": 300, "win": 300, "step": 50},
-]
+PARAM_GRID = ParameterGrid({
+    "trim":    [0, 25, 50],
+    "min_len": [0, 300],
+    "win":     [100, 200, 250, 300],
+    "step":    [25, 50, 75, 100],
+})
+def valid_data_params(p: dict) -> bool:
+    # Schrittweite sollte nicht größer als Fenster sein
+    if p["step"] > p["win"]:
+        return False
+    # sinnvoll: min_len muss mindestens ein Fenster nach trim erlauben
+    # (hier eher konservativ)
+    if p["min_len"] < p["win"]:
+        return False
+    return True
+
+DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 
 MODEL_SPACE = {
   "supervised": {
