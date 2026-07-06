@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+import os
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
@@ -212,6 +213,13 @@ def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes, model_cfg: mod
     disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
     disp2.plot()
     disp2.ax_.set_title(f"Confusion Matrix {model_cfg.model_name}")
+
+    # making sure the subdir exist
+    script_dir = os.path.dirname(__file__)
+    results_dir = os.path.join(script_dir, f'result_plots/{model_cfg.model_name}')
+    if not os.path.isdir(results_dir):
+        os.makedirs(results_dir)
+
     figure_name= (f"{datetime.today().strftime('%Y-%m-%d')}_"
                   f"{model_cfg.model_name}_"
                   f"trim{model_cfg.trim}_"
