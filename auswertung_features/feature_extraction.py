@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from models import MODELS_SUPERVISED
 from features import FEATURES_TIME, FEATURES_FREQ
-from parameterraum import FEATURE_SETS, TEST_MODELS
+from parameterraum import FEATURE_SETS, TEST_MODELS, PARAM_GRID, model_config
 
 from sklearn.model_selection import LeaveOneGroupOut, LeavePGroupsOut
 
@@ -105,7 +105,7 @@ def build_feature_table(meta: pd.DataFrame, trim: int = 50, min_len: int = 300,
     :param min_len: minimaler Länge des Trials
     :param win: Länge des Windows
     :param step: Schritt der feature extraction
-    :return: dataframe mit den extraktions features
+    :return: dataframe mit den extractions features
     """
     rows = []
     for i, r in meta.iterrows(): # über die Tabelle iterieren
@@ -175,7 +175,7 @@ def run_loso(feature_df: pd.DataFrame, hand: str, model: str):
     groups = df["subject_id"].to_numpy()  # gruppierung nach der subject_id
 
     logo = LeavePGroupsOut(2) # Provides train/test split by letting one out of the groups
-    model = MODELS_SUPERVISED[model]
+    model = MODELS_SUPERVISED[model]()
 
     # window-level predictions sammeln
     preds = np.empty_like(y) # Allocation of memory, values in preds are arbitrary
@@ -214,7 +214,9 @@ def showAccuracyAndCM(fingerLabelArray, predictedLabels, classes):
     cm2 = confusion_matrix(fingerLabelArray, predictedLabels, labels=classes)
     disp2 = ConfusionMatrixDisplay(confusion_matrix=cm2, display_labels=classes)
     disp2.plot()
-    #plt.show()
+    disp2.ax_.set_title("Confusion Matrix")
+    disp2.figure_.savefig("confusion_matrix.png")
+
 
 def main():
 
@@ -226,21 +228,33 @@ def main():
         if col not in meta.columns:
             raise ValueError(f"meta.csv missing column: {col}")
     # TODO change build_feature_table so it can 1. iterate from PARAM_GRID and 2. give it to run_loso so it can be written in the result.csv
-    # Features bauen
-    feat_df = build_feature_table(
-        meta=meta,
-        trim=50,
-        min_len=300,
-        win=300,
-        step=100
-    )
+
+    for model in TEST_MODELS["supervised"]:
+        for params in PARAM_GRID:
+            model_cfg = model_config(
+                model_name=model,
+                trim= params["trim"],
+                min_len= params["min_len"],
+                win= params["win"],
+                step= params["step"],
+                features = FEATURE_SETS,
+            )
+
+            # Features bauen
+            feat_df = build_feature_table(
+            meta=meta,
+            trim=model_cfg.trim,
+            min_len=model_cfg.min_len,
+            win=,
+            step=100
+            )
 
     print("Feature table shape:", feat_df.shape)
     print("Subjects:", feat_df["subject_id"].nunique(), "Sessions:", feat_df["session"].nunique())
 
     # LOSO getrennt für l und r
     # gleichzeitiger Test mehrerer supervised Modelle
-    for model in TEST_MODELS["supervised"]:
+
         run_loso(feat_df, hand="l",model=model)
         run_loso(feat_df, hand="r",model=model)
 

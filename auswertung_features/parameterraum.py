@@ -1,3 +1,14 @@
+from dataclasses import dataclass
+
+@dataclass
+class model_config:
+    model_name: str
+    trim: int
+    min_len: int
+    win: int
+    step: int
+    features: list | dict
+
 PARAM_GRID = [
     {"trim": 25, "min_len": 300, "win": 100, "step": 25},
     {"trim": 25, "min_len": 300, "win": 100, "step": 50},
