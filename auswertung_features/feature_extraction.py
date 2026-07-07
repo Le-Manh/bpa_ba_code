@@ -12,6 +12,9 @@ from models import MODELS_SUPERVISED, MODELS_CLUSTERING
 from features import FEATURES_TIME, FEATURES_FREQ
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
+# TODO implement tsfel instead of own cfg
+import tsfel
+
 from sklearn.model_selection import GroupKFold, ParameterGrid
 from sklearn.base import clone
 from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
