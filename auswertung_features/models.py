@@ -45,27 +45,27 @@ def register_model_clustering(name: str, *, needs_scaling: bool = False):
 # TODO more supervised models AND check if a class needs a param like knn
 @register_model_supervised('lda', needs_scaling=True)
 def model_lda(**kwargs):
-    return LinearDiscriminantAnalysis()
+    return LinearDiscriminantAnalysis(**kwargs)
 
 @register_model_supervised('linear-svm', needs_scaling=True)
 def model_linear_svm(**kwargs):
-    return LinearSVC()
+    return LinearSVC(**kwargs)
 
 @register_model_supervised('decision-tree', needs_scaling=False)
 def model_decision_tree(**kwargs):
-    return DecisionTreeClassifier()
+    return DecisionTreeClassifier(**kwargs)
 
 @register_model_supervised('log-reg', needs_scaling=True)
 def model_logistic_regression(**kwargs):
-    return LogisticRegression()
+    return LogisticRegression(**kwargs)
 
 @register_model_supervised('knn', needs_scaling=True)
 def model_knn(**kwargs):
-    return KNeighborsClassifier()
+    return KNeighborsClassifier(**kwargs)
 
 @register_model_supervised('randomforest', needs_scaling=False)
 def model_random_forest(**kwargs):
-    return RandomForestClassifier()
+    return RandomForestClassifier(**kwargs)
 
 # =========================================================
 # ===              unsupervised models                  ===
