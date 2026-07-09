@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 STRETCH_PLOT = False # The data has around 7000-8000 Samples. to see more this can be used to strech the plot
 FFT_PLOT = False # This FFT requires a sampling rate of 500 Hz
 SCALE_DATA_BACK = True
+SECOND_AXIS_IN_SECONDS = True
 
 path_messdaten = "../ArduinoApps/emg_messung/python/messdaten/"
 
@@ -33,26 +34,37 @@ def drawFingerTypeLabel(ax,df,n):
         if b == len(df["Aktueller Finger"]): # Prüfen, ob b gleich der Länge aller Daten des DataFrames ist
             ax.axvline(x = b, alpha = 0.5, color = "black", linestyle = "--") # Wenn ja, letzte Schwarze Linies
 
+def samples_to_s(x):
+    return x/500
+
+def s_to_samples(x):
+    return x*500
+
 def draw_plot(df_data: pd.DataFrame) -> tuple:
     if STRETCH_PLOT:
         fig, axes = plt.subplots(nrows=4, ncols=1,figsize=(50,10))
     else:
-        fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(20,10))
-
+        if SECOND_AXIS_IN_SECONDS: # need a hspace to scale the subplot
+            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10), gridspec_kw={'hspace': 0.5})
+        else:
+            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
     ax = axes.ravel()
     for i in range(len(value_types)):
         if FFT_PLOT:
             ax[i].plot(df_data["freq"],df_data[value_types[i]].to_numpy(), label="Sensor " + str(i))
             ax[i].legend()
-            ax[i].set_title('Datensatz ' + value_types[i] + " FFT")
-            ax[i].set_xlabel('Frequencies in Hz')
+            ax[i].set_title(value_types[i] + " FFT")
+            ax[i].set_xlabel('Frequencies in [Hz]')
         else:
             ax[i].plot(df_data[value_types[i]], label="Sensor " + str(i))
             ax[i].legend()
-            ax[i].set_title('Datensatz '+ value_types[i])
             ax[i].set_xlabel('Samples')
+            if SECOND_AXIS_IN_SECONDS:
+                secax = ax[i].secondary_xaxis('top', functions=(samples_to_s, s_to_samples))
+                secax.set_xlabel('Zeit in [s]')
+            ax[i].set_title(value_types[i])
             if SCALE_DATA_BACK:
-                ax[i].set_ylabel('EMG-Amplitude in µV')
+                ax[i].set_ylabel('EMG-Amplitude in [µV]')
             else:
                 ax[i].set_ylabel('EMG-Amplitude')
     return fig,ax
