@@ -299,12 +299,14 @@ def eval_holdout(feature_df: pd.DataFrame,
     # ---- supervised / ann ----
     if model_cfg.model_type in ("supervised", "ann"):
         model = clone(make_supervised_model(model_cfg))
+        print(f"Training model: {model_cfg.model_name} mit {model_cfg.params}")
         model.fit(X_tr, y_tr)
         y_pred_win = model.predict(X_te)
 
     # ---- clustering ----
     elif model_cfg.model_type == "clustering":
         spec = MODELS_CLUSTERING[model_cfg.model_name]
+        print(f"Training: {model_cfg.model_name} mit {model_cfg.params}")
         clusterer = clone(make_clustering_model(model_cfg))
 
         if spec.needs_scaling:
