@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import json
+import time
 
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
@@ -76,6 +77,10 @@ def nested_cv_sliding_hybrid(
     feature_cache: dict[str, pd.DataFrame] = {}
 
     results = []
+    t0_all = time.perf_counter()
+    units_total = outer_splits * len(hands)
+    units_done = 0
+    durations = []
 
     for outer_fold, (tr_idx, te_idx) in enumerate(outer_cv.split(subjects_all, groups=subjects_all), start=0):
         outer_train_sub = subjects_all[tr_idx].tolist()
@@ -83,7 +88,7 @@ def nested_cv_sliding_hybrid(
 
         outer_train_set = set(outer_train_sub)
         outer_test_set  = set(outer_test_sub)
-
+        t0_unit = time.perf_counter()
         for hand in hands:
             best = None
             best_score = -np.inf
@@ -207,6 +212,17 @@ def nested_cv_sliding_hybrid(
                 # helpful to log the operational latency
                 "best_ok_latency_s": float(effective_latency_s(best_dcfg.win, best_dcfg.step, vote_K, fs=fs)),
             })
+            units_done += 1
+            dt = time.perf_counter() - t0_unit
+            durations.append(dt)
+
+            avg = sum(durations) / len(durations)
+            eta = avg * (units_total - units_done)
+            elapsed = time.perf_counter() - t0_all
+
+            print(f"[Progress] fold {outer_fold + 1}/{outer_splits}, hand={hand} | "
+                  f"unit {units_done}/{units_total} | "
+                  f"dt={dt / 60:.1f} min | elapsed={elapsed / 60:.1f} min | ETA≈{eta / 60:.1f} min")
 
     return pd.DataFrame(results)
 
