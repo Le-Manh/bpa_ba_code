@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 import os
+import numpy as np
 
 def plot_cm(cm: np.ndarray, classes, out_path: str, title: str):
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)

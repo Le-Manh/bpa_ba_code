@@ -5,12 +5,36 @@ from collections import Counter, deque # Counter is a hashable dict and deque a 
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, confusion_matrix
 from sklearn.pipeline import Pipeline
 from sklearn.base import clone
 from sklearn.model_selection import GroupKFold, GridSearchCV
 
 from build_models import make_clustering_model, make_supervised_model
+
+def sliding_vote_cm_from_dfpred(df_pred: pd.DataFrame, K: int, classes) -> np.ndarray:
+    gcols = ["subject_id", "session", "trial_id"]
+    y_true_all, y_pred_all = [], []
+
+    for _, g in df_pred.groupby(gcols, sort=False):
+        g = g.sort_values("widx")
+        y_true = g["label"].to_numpy(int)
+        y_hat  = g["pred"].to_numpy(int)
+
+        y_hat_v = sliding_majority_vote(y_hat, K=K)
+        if len(y_hat_v) == 0:
+            continue
+        y_true_v = y_true[K-1:]
+
+        y_true_all.append(y_true_v)
+        y_pred_all.append(y_hat_v)
+
+    if not y_true_all:
+        return np.zeros((len(classes), len(classes)), dtype=int)
+
+    y_true_all = np.concatenate(y_true_all)
+    y_pred_all = np.concatenate(y_pred_all)
+    return confusion_matrix(y_true_all, y_pred_all, labels=list(classes))
 
 def effective_latency_s(win: int, step: int, K: int, fs: int = 500) -> float:
     return win/fs + (K-1)*step/fs
@@ -50,7 +74,7 @@ def sliding_vote_f1_from_dfpred(df_pred: pd.DataFrame, K: int, average="macro") 
     y_pred_all = np.concatenate(y_pred_all)
     return float(f1_score(y_true_all, y_pred_all, average=average, zero_division=0))
 
-def outer_eval(feature_df, train_subjects, test_subjects, hand, base_cfg, params_prefixed, vote_K):
+def outer_eval(feature_df, train_subjects, test_subjects, hand, base_cfg, params_prefixed, vote_K, classes=(0,1,2,3,4), return_cm = True):
     df = feature_df[feature_df["hand"] == hand]
     df_tr = df[df["subject_id"].isin(train_subjects)]
     df_te = df[df["subject_id"].isin(test_subjects)]
@@ -75,7 +99,13 @@ def outer_eval(feature_df, train_subjects, test_subjects, hand, base_cfg, params
     df_pred["pred"] = y_hat
     outer_sliding_f1 = float(sliding_vote_f1_from_dfpred(df_pred, K=vote_K))
 
-    return {"outer_window_f1": outer_window_f1, "outer_sliding_f1": outer_sliding_f1}
+    out = {"outer_window_f1": outer_window_f1, "outer_sliding_f1": outer_sliding_f1}
+
+    if return_cm:
+        cm = sliding_vote_cm_from_dfpred(df_pred, K=vote_K, classes=classes)
+        out["cm_json"] = json.dumps(cm.tolist())
+
+    return out
 
 def topN_params_by_gridsearch(df_tr_hand, feat_cols, base_cfg, param_grid,
                               inner_splits=4, topN=5, n_jobs=-1):
