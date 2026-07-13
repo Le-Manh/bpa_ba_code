@@ -1,51 +1,34 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections import Counter, deque # Counter is a hashable dict and deque a "faster list" at least for my usecase
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
-from collections import Counter
 
 from models import MODELS_SUPERVISED, MODELS_CLUSTERING
-from features import FEATURES_TIME, FEATURES_FREQ
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
+
+from plot_fn import plot_cm
+from build_models import(make_clustering_model,
+                         make_supervised_model,
+                         build_model_cfgs,
+                         )
+
+from build_features import build_feature_table
 
 # TODO implement tsfel instead of own cfg
 import tsfel
 
-from sklearn.model_selection import GroupKFold, ParameterGrid
+from sklearn.model_selection import GroupKFold, ParameterGrid, GridSearchCV
 from sklearn.base import clone
-from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
+from sklearn.metrics import (confusion_matrix,
                              f1_score,
                              )
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-
-from scipy.fft import rfft
-
-LABEL_COL = "Aktueller Finger"
-TIME_COL = "timestamp_ms"
-SENSORS = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
-
 
 # Sensor 2 ist Gegenseite (Extensor-Seite)
 EXT_IDX = 2
 FLEX_IDXS = [0, 1, 3]
-
-def iter_param_dicts(obj) -> Iterable[dict[str, Any]]:
-    # erlaubt: list[dict], ParameterGrid, tuple/list leere dicts, etc.
-    if obj is None:
-        yield {}
-    elif isinstance(obj, ParameterGrid):
-        yield from obj
-    else:
-        # z.B. list[dict]
-        yield from obj
-
-def params_to_tuple(params: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
-    return tuple(sorted(params.items(), key=lambda kv: kv[0]))
 
 def build_data_cfgs(data_param_list, feature_set_library) -> list[DataConfig]:
     out: list[DataConfig] = []
@@ -76,47 +59,6 @@ def build_data_cfgs(data_param_list, feature_set_library) -> list[DataConfig]:
             ))
     return out
 
-def build_model_cfgs(model_space: dict,
-                    *,
-                    validate_names: bool = True,
-                    validate_params_by_instantiation: bool = False) -> list[ModelConfig]:
-    allowed_types = {"supervised", "ann", "clustering"}
-    cfgs: list[ModelConfig] = []
-
-    for model_type, models in model_space.items():
-        if model_type not in allowed_types:
-            raise ValueError(f"Unknown model_type '{model_type}'. Allowed: {sorted(allowed_types)}")
-        for model_name, params_obj in models.items():
-            # --- name validation against registries ---
-            if validate_names:
-                if model_type in ("supervised", "ann"):
-                    if model_name not in MODELS_SUPERVISED:
-                        raise KeyError(f"Unknown model '{model_name}' for type '{model_type}'")
-                elif model_type == "clustering":
-                    if model_name not in MODELS_CLUSTERING:
-                        raise KeyError(f"Unknown clustering model '{model_name}'")
-            for params in iter_param_dicts(params_obj):
-                cfg = ModelConfig(
-                    model_name=model_name,
-                    model_type=model_type,
-                    params=params_to_tuple(params),
-                )
-                # --- check param names by instantiating model object ---
-                if validate_params_by_instantiation:
-                    try:
-                        if model_type in ("supervised", "ann"):
-                            _ = make_supervised_model(cfg)
-                        else:
-                            _ = make_clustering_model(cfg)
-                    except TypeError as e:
-                        raise TypeError(
-                            f"Bad params for {model_type}/{model_name}: {params}\nOriginal: {e}"
-                        ) from e
-
-                cfgs.append(cfg)
-
-    return cfgs
-
 def validate_model_cfg(cfg: ModelConfig):
     if cfg.model_type in ("supervised", "ann"):
         if cfg.model_name not in MODELS_SUPERVISED:
@@ -126,115 +68,6 @@ def validate_model_cfg(cfg: ModelConfig):
             raise KeyError(f"Unknown clustering model: {cfg.model_name}")
     else:
         raise KeyError(f"Unknown model_type: {cfg.model_type}")
-
-def load_session(csv_path: Path) -> pd.DataFrame | None:
-    #print(f"Loading session from {csv_path}")
-    df = pd.read_csv(csv_path)
-    # check if df is empty
-    if df.empty:
-        print(f"[WARN] {csv_path}: is empty")
-        return None
-    # minimal sanity checks
-    missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns] # check if all the csv are full
-    if missing:
-        raise ValueError(f"Missing columns in {csv_path}: {missing}")
-    df = df.sort_values(TIME_COL).reset_index(drop=True)
-    return df
-
-def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300) -> list[tuple[np.ndarray, int]]:
-    """Segmentiert eine Session in Label-Blöcke. Jeder Block wird zu einem Trial-Kandidaten."""
-    finger = df[LABEL_COL].to_numpy()
-    change = np.r_[True, finger[1:] != finger[:-1]] #Translates slice objects to concatenation along the first axis, https://numpy.org/doc/stable/reference/generated/numpy.r_.html
-    # change is an array which indicates where the finger was changed
-    seg_id = np.cumsum(change) - 1 #cumulative sum of change and -1 to let our segmentation start with 0
-
-    trials = [] # extrahieren einer Bewegung
-    for sid in np.unique(seg_id): # pro unique seg_id auslesen
-        block = df.loc[seg_id == sid, [LABEL_COL] + SENSORS] # aus dataframe den Block extrahieren
-        y = int(block[LABEL_COL].iloc[0]) # Klassenlabel auslesen
-        X = block[SENSORS].to_numpy(dtype=np.float32) # get sensor data
-
-        # abschneiden der Werte anhand des trim
-        if X.shape[0] <= 2 * trim: # verwerfen von Messwerten die nciht trimbar sind
-            continue
-        if trim > 0:
-            X = X[trim:-trim] # trim wird vorne und hinten weggeworfen
-
-        if X.shape[0] < min_len: # wenn min_len 300 ist dann werden alle Messungen unter 600ms verworfen
-            continue
-
-        trials.append((X, y))  #zurück in die Liste packen
-
-    return trials
-
-def window_features_named(X: np.ndarray, cfg: DataConfig, eps: float = 1e-8):
-    N, n_sensors = X.shape
-    out = []
-    time_names = list(cfg.time_feature_names)
-    freq_names = list(cfg.freq_feature_names)
-
-    for start in range(0, N - cfg.win + 1, cfg.step):
-        w = X[start:start + cfg.win]
-        feats = {}
-
-        for name in time_names:
-            v = np.asarray(FEATURES_TIME[name](w, eps=eps)).reshape(-1)
-            for si, val in enumerate(v):
-                feats[f"t_{name}_s{si}"] = float(val)
-
-        if freq_names:
-            ft = rfft(w, axis=0)
-            s = (np.abs(ft) ** 2) / w.shape[0]
-            for name in freq_names:
-                v = np.asarray(FEATURES_FREQ[name](s, eps=eps)).reshape(-1)
-                for si, val in enumerate(v):
-                    feats[f"f_{name}_s{si}"] = float(val)
-
-        out.append(feats)
-
-    return out
-
-def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig) -> pd.DataFrame:
-    """
-    :param meta: meta.csv mit der Übersicht der Messungen und Probanden
-    :param data_cfg: Alle Daten, die ausprobiert werden sollen
-    :return: dataframe mit den extractions features
-    """
-    rows = []
-    for i, r in meta.iterrows(): # über die Tabelle iterieren
-        csv_path = r["rel_path"]
-        df = load_session(csv_path) # csv laden + check ob die wichtigen spalten existieren
-
-        #Error Handling für leere dfs
-        if df is None:
-            continue
-
-        blocks = split_into_label_blocks(df, trim=data_cfg.trim, min_len=data_cfg.min_len)
-
-        # Check: idealerweise genau 5 Blöcke (0..4)
-        # Wenn nicht, loggen (nicht zwingend skippen).
-        labels_found = [y for (_, y) in blocks]
-        if len(blocks) != 5 or sorted(set(labels_found)) != [0,1,2,3,4]:
-            print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
-
-        for trial_id, (X, y) in enumerate(blocks):
-            win_dicts = window_features_named(X, cfg= data_cfg)
-            # Falls nach Fensterung nix übrig bleibt -> skip
-            if len(win_dicts) == 0:
-                continue
-
-            for widx, feat_dict in enumerate(win_dicts): # neubau des Dataframe mit features
-                rows.append({
-                    "subject_id": str(r["subject_id"]),
-                    "hand": str(r["hand"]),
-                    "session": str(csv_path),
-                    "trial_id": trial_id,
-                    "label": y, # Klassenlabel
-                    "widx": widx,
-                    **feat_dict
-                })
-
-    return pd.DataFrame(rows)
 
 def trial_level_vote(df_pred: pd.DataFrame) -> pd.DataFrame:
     """
@@ -266,14 +99,6 @@ def majority_mapping(cluster_ids: np.ndarray, y: np.ndarray) -> dict[int, int]:
 def map_clusters(cluster_ids: np.ndarray, mapping: dict[int,int]) -> np.ndarray:
     default = next(iter(mapping.values()))
     return np.array([mapping.get(int(c), default) for c in cluster_ids], dtype=int)
-
-def plot_cm(cm: np.ndarray, classes, out_path: str, title: str):
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
-    disp.plot()
-    disp.ax_.set_title(title)
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    disp.figure_.savefig(out_path, format="svg")
-    plt.close(disp.figure_)
 
 def eval_holdout(feature_df: pd.DataFrame,
                  train_subjects: set[str],
@@ -484,17 +309,6 @@ def nested_cv(meta: pd.DataFrame,
         plot_cm(cm_total[hand], classes, out_path, title)
 
     return results_df
-
-def make_supervised_model(model_cfg: ModelConfig):
-    spec = MODELS_SUPERVISED[model_cfg.model_name]
-    base = spec.make(**model_cfg.params_dict())
-    if spec.needs_scaling:
-        return Pipeline([("scaler", StandardScaler()), ("clf", base)])
-    return base
-
-def make_clustering_model(model_cfg: ModelConfig):
-    spec = MODELS_CLUSTERING[model_cfg.model_name]
-    return spec.make(**model_cfg.params_dict())
 
 def main():
     meta_path = Path("meta.csv")                # bleibt im repo/arbeitspfad

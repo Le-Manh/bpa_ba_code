@@ -22,36 +22,33 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 
 MODEL_SPACE = {
     "supervised": {
-        "linear-svm": ParameterGrid({"C": [0.01, 0.1, 1.0, 10.0]}),
-        "knn": ParameterGrid({"n_neighbors": [1, 3, 5, 7, 9]}),
-        "log-reg": ParameterGrid({"C": [0.1, 1.0, 10.0], "max_iter": [2000]}),
-        "randomforest": ParameterGrid({
+        "linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
+        "knn": {"n_neighbors": [1, 3, 5, 7, 9]},
+        "log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
+        "randomforest": {
             "n_estimators": [300, 600],
             "max_depth": [None, 10, 20],
             "random_state": [0],
-        }),
-        "decision-tree": ParameterGrid({
-            "max_depth": [None, 10, 20],
-            "random_state": [0],
-        }),
-        "lda": [ {} ],
+        },
+        "lda": {},
     },
 
     "ann": {
-        "mlp": ParameterGrid({
+        "mlp":{
             "hidden_layer_sizes": [(50,), (100,), (200,)],
             "alpha": [1e-4, 1e-3],
-        })
-    },
-
-    "clustering": {
-        "kmeans": ParameterGrid({
+        }
+    }
+}
+''' not used for now
+    "clustering": { # TODO vllt eher Dimensionsreduktion und plotten
+        "kmeans": ParameterGrid({ # ParameterGrid will be not used if I GridSearchCV is used
             "n_clusters": [5],
             "random_state": [0, 1, 2],
             "n_init": ["auto"],
         })
     }
-}
+'''
 
 
 FEATURE_SETS = {
@@ -81,9 +78,9 @@ FEATURE_SETS = {
 }
 
 FEATURE_SET_LIBRARY = {
-    "time_only": {"time": FEATURE_SETS["time"], "freq": []},
-    "freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
-    "time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]},
+    #"time_only": {"time": FEATURE_SETS["time"], "freq": []},
+    #"freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
+    "time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]}, # in the first run wa sthis the best
 }
 
 @dataclass(frozen=True)
