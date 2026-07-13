@@ -14,7 +14,7 @@ def valid_data_params(p: dict) -> bool:
         return False
     # sinnvoll: min_len muss mindestens ein Fenster nach trim erlauben
     # (hier eher konservativ)
-    if p["min_len"] != 0 or p["min_len"] < p["win"]:
+    if p["min_len"] != 0 and p["min_len"] < p["win"]:
         return False
     return True
 

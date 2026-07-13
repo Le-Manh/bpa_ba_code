@@ -222,7 +222,6 @@ def main():
     #MODEL_CFGS = build_model_cfgs(MODEL_SPACE)
 
     DATA_CFGS = list(dict.fromkeys(build_data_cfgs(DATA_PARAM_LIST, FEATURE_SET_LIBRARY)))
-
     #df_nested = nested_cv(meta, MODEL_CFGS,DATA_CFGS, outer_splits=5, inner_splits=4, plot_per_outer_fold=False)
     df_nested = nested_cv_sliding_hybrid(
         meta=meta,
@@ -236,7 +235,7 @@ def main():
         K_candidates=(1, 3, 5, 7, 9, 11, 13, 15, 17, 19),
         plot_per_outer_fold=True,
     )
-    df_nested.to_csv("results_nested.csv", index=False)
+    df_nested.to_csv("results/sliding/results_sliding.csv", index=False)
 
     #zusammenfassen
     df_nested_summary = (df_nested
@@ -244,7 +243,7 @@ def main():
                          .groupby(["hand"])["outer_sliding_f1"]
                          .agg(["mean", "std", "count"])
                          .reset_index())
-    df_nested_summary.to_csv("results_nested_summary.csv", index=False)
+    df_nested_summary.to_csv("results/sliding/results_sliding_summary.csv", index=False)
 
     # Gewinner-Häufigkeiten
     model_freq = (df_nested
@@ -252,7 +251,7 @@ def main():
                   .value_counts()
                   .rename("n") # wie oft das Model mit der Configuration vorkommt
                   .reset_index())
-    model_freq.to_csv("results_nested_winner_models.csv", index=False)
+    model_freq.to_csv("results/sliding/results_sliding_winner_models.csv", index=False)
 
     ''' not used
     fs_freq = (df_nested
@@ -270,7 +269,7 @@ def main():
                   .rename("n")
                   .reset_index()
                   .sort_values(["hand", "n"], ascending=[True, False]))
-    param_freq.to_csv("results_nested_winner_params.csv", index=False)
+    param_freq.to_csv("results/sliding/results_sliding_winner_params.csv", index=False)
 
 
 if __name__ == "__main__":
