@@ -51,8 +51,8 @@ def model_lda(**kwargs):
 def model_linear_svm(**kwargs):
     return LinearSVC(**kwargs)
 
-@register_model_supervised('svm', needs_scaling=True)
-def model_svm(**kwargs):
+@register_model_supervised('svc', needs_scaling=True)
+def model_svc(**kwargs):
     return SVC(**kwargs)
 
 @register_model_supervised('decision-tree', needs_scaling=False)
@@ -88,7 +88,7 @@ def cluster_agglo(**kwargs):
 @register_model_supervised("mlp", needs_scaling=True)
 def model_mlp(**kwargs):
     return MLPClassifier(
-        max_iter=300,
+        max_iter=10000,
         early_stopping=True,
         random_state=0,
         **kwargs
