@@ -299,14 +299,14 @@ def eval_holdout(feature_df: pd.DataFrame,
     # ---- supervised / ann ----
     if model_cfg.model_type in ("supervised", "ann"):
         model = clone(make_supervised_model(model_cfg))
-        print(f"Training model: {model_cfg.model_name} mit {model_cfg.params}")
+        # print(f"Training model: {model_cfg.model_name} mit {model_cfg.params}")
         model.fit(X_tr, y_tr)
         y_pred_win = model.predict(X_te)
 
     # ---- clustering ----
     elif model_cfg.model_type == "clustering":
         spec = MODELS_CLUSTERING[model_cfg.model_name]
-        print(f"Training: {model_cfg.model_name} mit {model_cfg.params}")
+        # print(f"Training: {model_cfg.model_name} mit {model_cfg.params}")
         clusterer = clone(make_clustering_model(model_cfg))
 
         if spec.needs_scaling:
@@ -441,6 +441,12 @@ def nested_cv(meta: pd.DataFrame,
                 return_trials = True
             )
 
+            planned_test = list(map(str, outer_test_sub))
+            planned_train = list(map(str, outer_train_sub))
+            effective_test = sorted(trial_df["subject_id"].astype(str).unique().tolist())
+
+            missing = sorted(set(planned_test) - set(effective_test))  # Test-Subjects ohne Trials (für diese Hand/Config)
+
             cm = confusion_matrix(trial_df["true"], trial_df["pred"], labels=list(classes))
             cm_total[hand] += cm
 
@@ -456,6 +462,8 @@ def nested_cv(meta: pd.DataFrame,
             results.append({
                 "outer_fold": outer_fold,
                 "hand": hand,
+                "test_subjects":"|".join(sorted(planned_test)),
+                "train_subjects":"|".join(sorted(planned_train)),
                 "best_model": best_model,
                 "best_feature_set": best_dcfg.feature_set_name,
                 "best_win": best_dcfg.win,
@@ -465,6 +473,8 @@ def nested_cv(meta: pd.DataFrame,
                 "best_inner_score": best_score,
                 "outer_score": outer_score,
                 "n_trials_outer": int(len(trial_df)),
+                "test_subjects_missing": ";".join(sorted(missing)),
+                "n_test_subjects_missing": len(missing),
             })
     results_df = pd.DataFrame(results)
     # Gesamt-CM plotten
@@ -514,14 +524,14 @@ def main():
     model_freq = (df_nested
                   .groupby("hand")["best_model"]
                   .value_counts()
-                  .rename("n")
+                  .rename("n") # wie oft das Model mit der Configuration vorkommt
                   .reset_index())
     model_freq.to_csv("results_nested_winner_models.csv", index=False)
 
     fs_freq = (df_nested
                .groupby("hand")["best_feature_set"]
                .value_counts()
-               .rename("n")
+               .rename("n") # wie oft das Featureset in jeder Hand vorkommt
                .reset_index())
     fs_freq.to_csv("results_nested_winner_featuresets.csv", index=False)
 
