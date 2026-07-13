@@ -43,7 +43,7 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
         if trim > 0:
             X = X[trim:-trim] # trim wird vorne und hinten weggeworfen
 
-        if X.shape[0] < min_len: # wenn min_len 300 ist dann werden alle Messungen unter 600ms verworfen
+        if X.shape[0] < min_len != 0: # wenn min_len 300 ist dann werden alle Messungen unter 600ms verworfen
             continue
 
         trials.append((X, y))  #zurück in die Liste packen

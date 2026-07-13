@@ -14,7 +14,7 @@ def valid_data_params(p: dict) -> bool:
         return False
     # sinnvoll: min_len muss mindestens ein Fenster nach trim erlauben
     # (hier eher konservativ)
-    if p["min_len"] < p["win"]:
+    if p["min_len"] != 0 or p["min_len"] < p["win"]:
         return False
     return True
 
@@ -23,8 +23,9 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 MODEL_SPACE = {
     "supervised": {
         "linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
-        "knn": {"n_neighbors": [1, 3, 5, 7, 9]},
-        "log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
+        "svm": {"C": [0.01, 0.1, 1.0, 10.0], "degree": [2,3,4,5,6]},
+        #"knn": {"n_neighbors": [1, 3, 5, 7, 9]},
+        #"log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
         "randomforest": {
             "n_estimators": [300, 600],
             "max_depth": [None, 10, 20],
@@ -35,6 +36,8 @@ MODEL_SPACE = {
 
     "ann": {
         "mlp":{
+            "solver": ["lbfgs","sgd", "adam"],
+            "activation": ["identity", "log", "tanh", "relu"],
             "hidden_layer_sizes": [(50,), (100,), (200,)],
             "alpha": [1e-4, 1e-3],
         }

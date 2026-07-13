@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 
@@ -42,7 +42,7 @@ def register_model_clustering(name: str, *, needs_scaling: bool = False):
 # =========================================================
 # ===                supervised models                  ===
 # =========================================================
-# TODO more supervised models AND check if a class needs a param like knn
+
 @register_model_supervised('lda', needs_scaling=True)
 def model_lda(**kwargs):
     return LinearDiscriminantAnalysis(**kwargs)
@@ -50,6 +50,10 @@ def model_lda(**kwargs):
 @register_model_supervised('linear-svm', needs_scaling=True)
 def model_linear_svm(**kwargs):
     return LinearSVC(**kwargs)
+
+@register_model_supervised('svm', needs_scaling=True)
+def model_svm(**kwargs):
+    return SVC(**kwargs)
 
 @register_model_supervised('decision-tree', needs_scaling=False)
 def model_decision_tree(**kwargs):

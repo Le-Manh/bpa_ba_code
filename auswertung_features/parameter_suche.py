@@ -6,14 +6,9 @@ import numpy as np
 import pandas as pd
 import json
 
-from models import MODELS_SUPERVISED, MODELS_CLUSTERING
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
 from plot_fn import plot_cm
-from build_models import(make_clustering_model,
-                         make_supervised_model,
-                         build_model_cfgs,
-                         )
 from build_features import build_feature_table
 from evaluation import effective_latency_s, topN_params_by_gridsearch, inner_select_params_and_K_sliding, outer_eval, sliding_majority_vote
 
@@ -21,12 +16,6 @@ from evaluation import effective_latency_s, topN_params_by_gridsearch, inner_sel
 import tsfel
 
 from sklearn.model_selection import GroupKFold
-from sklearn.base import clone
-from sklearn.metrics import (confusion_matrix,
-                             f1_score,
-                             )
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 
 # Sensor 2 ist Gegenseite (Extensor-Seite)
 EXT_IDX = 2
