@@ -37,7 +37,7 @@ MODEL_SPACE = {
     "ann": {
         "mlp":{
             "solver": ["lbfgs","sgd", "adam"],
-            "activation": ["identity", "log", "tanh", "relu"],
+            "activation": ["identity", "logistic", "tanh", "relu"],
             "hidden_layer_sizes": [(50,), (100,), (200,)],
             "alpha": [1e-4, 1e-3],
         }
