@@ -33,13 +33,15 @@ MODEL_SPACE = {
         },
         "lda": {},
     },
-
     "ann": {
         "mlp":{
             "solver": ["lbfgs","sgd", "adam"],
             "activation": ["identity", "logistic", "tanh", "relu"],
             "hidden_layer_sizes": [(50,), (100,), (200,)],
             "alpha": [1e-4, 1e-3],
+            "max_iter": [10000],
+            "early_stopping":[True],
+            "random_state":[0],
         }
     }
 }

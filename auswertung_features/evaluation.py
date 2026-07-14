@@ -13,7 +13,7 @@ from sklearn.model_selection import GroupKFold, GridSearchCV
 from build_models import make_clustering_model, make_supervised_model
 
 def sliding_vote_cm_from_dfpred(df_pred: pd.DataFrame, K: int, classes) -> np.ndarray:
-    gcols = ["subject_id", "session", "trial_id"]
+    gcols = ["subject_id", "session", "trial_id"] # TODO doppelter Code
     y_true_all, y_pred_all = [], []
 
     for _, g in df_pred.groupby(gcols, sort=False):
@@ -51,7 +51,7 @@ def sliding_majority_vote(labels: np.ndarray, K: int) -> np.ndarray:
     return np.asarray(out, dtype=int)
 
 def sliding_vote_f1_from_dfpred(df_pred: pd.DataFrame, K: int, average="macro") -> float:
-    gcols = ["subject_id", "session", "trial_id"]
+    gcols = ["subject_id", "session", "trial_id"] # TODO doppelter Code
     y_true_all, y_pred_all = [], []
 
     for _, g in df_pred.groupby(gcols, sort=False):
