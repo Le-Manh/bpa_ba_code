@@ -88,8 +88,5 @@ def cluster_agglo(**kwargs):
 @register_model_supervised("mlp", needs_scaling=True)
 def model_mlp(**kwargs):
     return MLPClassifier(
-        max_iter=10000,
-        early_stopping=True,
-        random_state=0,
         **kwargs
     )
