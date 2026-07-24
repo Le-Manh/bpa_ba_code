@@ -3,8 +3,8 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from narwhals import String
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 import seaborn as sns
 from seaborn.objects import Plot
 
@@ -19,8 +19,8 @@ meta = pd.read_csv('meta.csv')
 cfg = DataConfig(
     trim=0,
     min_len=0,
-    win = 300,
-    step = 25,
+    win = 500,
+    step = 50,
     feature_set_name= "time+freq",
     time_feature_names =("rms",
              "wl",
@@ -47,14 +47,33 @@ cfg = DataConfig(
 
 df = build_feature_table(meta, cfg)
 
-print(df)
+df.iloc[:,7:] = StandardScaler().fit_transform(df.iloc[:,7:])
+pca = PCA(n_components=3)
+df_2D_right = pca.fit_transform(df[df["hand"] == "r"].iloc[:, 7:])
 
+fig = plt.figure()
+ax = fig.add_subplot(projection="3d")
 
+scatter = ax.scatter(df_2D_right[:,0],df_2D_right[:,1],df_2D_right[:,2],c=df[df["hand"]=="r"]["label"].tolist())
+
+legend1 = ax.legend(
+    scatter.legend_elements()[0],
+    ["Lf","Rf","Mf","If","th"],
+    loc="upper right",
+    title="Classes",
+)
+ax.add_artist(legend1)
+
+plt.legend()
+plt.show()
+
+print()
+'''
 pairplot = sns.pairplot(
     df,
     vars=sensor_list,
     hue="Aktueller Finger",
     )
 
-
 print(index)
+'''
