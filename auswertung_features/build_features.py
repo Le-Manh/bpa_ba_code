@@ -55,7 +55,7 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, b_TSFEL:bool =
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
     :param data_cfg: Alle Daten, die ausprobiert werden sollen
-    :param b_TSFEL: Nutzt die Liste von TSFEL, Überschreibt die Klasse data_cfg
+    :param b_TSFEL: Nutzt die Liste von TSFEL, Überschreibt die Klasse data_cfg und übernimmt nur win, min_len und trim aus data_cfg
     :param tsfel_cfg: Nur genutzt, wenn b_TSFEL gesetzt ist, um die Domäne von TSFEL festzulegen
     :return: dataframe mit den extractions features
     """
