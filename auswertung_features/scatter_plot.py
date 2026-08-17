@@ -17,7 +17,7 @@ str_dim_red = "LDA"
 str_hand = "r" # choose the hand
 
 # choose to use TSFEL
-b_TSFEL = False
+b_TSFEL = True
 
 cfg = DataConfig(
     trim=0,
@@ -77,5 +77,5 @@ plt.legend()
 if b_TSFEL:
     save_name = f"result_plots/scatter_plot_2d_{str_dim_red}_TSFEL_{str_hand}.svg"
 else:
-    save_name = f"result_plot/scatter_plot_2d_{str_dim_red}_{str_hand}.svg"
+    save_name = f"result_plots/scatter_plot_2d_{str_dim_red}_{str_hand}.svg"
 fig.savefig(save_name)
