@@ -51,7 +51,7 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
 
     return trials
 
-def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, b_TSFEL = False) -> pd.DataFrame:
+def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, b_TSFEL:bool = False, *args) -> pd.DataFrame:
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
     :param data_cfg: Alle Daten, die ausprobiert werden sollen
@@ -77,7 +77,7 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, b_TSFEL = Fals
 
         for trial_id, (X, y) in enumerate(blocks):
             if b_TSFEL:
-                cfg = tsfel.get_features_by_domain()
+                cfg = tsfel.get_features_by_domain(*args)
                 win_dicts = tsfel.time_series_features_extractor(cfg, X, fs = 500).to_dict('list')
                 win_dicts = [{k:v[0] for k, v in win_dicts.items()}]
 
