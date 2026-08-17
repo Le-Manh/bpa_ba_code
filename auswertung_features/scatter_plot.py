@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 from auswertung_features.build_features import build_feature_table
 from parameterraum import DataConfig
@@ -10,6 +10,12 @@ from parameterraum import DataConfig
 sensor_list = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
 
 meta = pd.read_csv('meta.csv')
+
+# choose to use LDA or PCA
+str_dim_red = "LDA"
+
+# choose to use TSFEL
+b_TSFEL = False
 
 cfg = DataConfig(
     trim=0,
@@ -40,12 +46,17 @@ cfg = DataConfig(
              ),
 )
 
-b_TSFEL = False
+
 df = build_feature_table(meta, cfg, b_TSFEL= b_TSFEL)
 
-df.iloc[:,7:] = StandardScaler().fit_transform(df.iloc[:,7:])
-pca = PCA(n_components=2)
-df_2D_right = pca.fit_transform(df[df["hand"] == "r"].iloc[:, 7:])
+df.iloc[:,6:] = StandardScaler().fit_transform(df.iloc[:,6:])
+if str_dim_red == "LDA":
+    lda = LinearDiscriminantAnalysis()
+    df_2D_right = lda.fit_transform(df[df["hand"] == "r"].iloc[:, 6:], df[df["hand"] == "r"]["label"])
+else:
+    pca = PCA(n_components=2)
+    str_dim_red = "PCA"
+    df_2D_right = pca.fit_transform(df[df["hand"] == "r"].iloc[:, 6:])
 
 fig = plt.figure()
 ax = fig.add_subplot()
@@ -62,7 +73,7 @@ ax.add_artist(legend1)
 
 plt.legend()
 if b_TSFEL:
-    save_name = "scatter_plot_2d_PCA_TSFEL_r.svg"
+    save_name = f"scatter_plot_2d_{str_dim_red}_TSFEL_r.svg"
 else:
-    save_name = "scatter_plot_2d_PCA_r.svg"
+    save_name = f"scatter_plot_2d_{str_dim_red}_r.svg"
 fig.savefig(save_name)
