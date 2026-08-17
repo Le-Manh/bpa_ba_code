@@ -45,16 +45,17 @@ cfg = DataConfig(
              ),
 )
 
-df = build_feature_table(meta, cfg)
+b_TSFEL = False
+df = build_feature_table(meta, cfg, b_TSFEL= b_TSFEL)
 
 df.iloc[:,7:] = StandardScaler().fit_transform(df.iloc[:,7:])
-pca = PCA(n_components=3)
+pca = PCA(n_components=2)
 df_2D_right = pca.fit_transform(df[df["hand"] == "r"].iloc[:, 7:])
 
 fig = plt.figure()
-ax = fig.add_subplot(projection="3d")
+ax = fig.add_subplot()
 
-scatter = ax.scatter(df_2D_right[:,0],df_2D_right[:,1],df_2D_right[:,2],c=df[df["hand"]=="r"]["label"].tolist())
+scatter = ax.scatter(df_2D_right[:,0],df_2D_right[:,1],c=df[df["hand"]=="r"]["label"].tolist())
 
 legend1 = ax.legend(
     scatter.legend_elements()[0],
@@ -65,15 +66,8 @@ legend1 = ax.legend(
 ax.add_artist(legend1)
 
 plt.legend()
-plt.show()
-
-print()
-'''
-pairplot = sns.pairplot(
-    df,
-    vars=sensor_list,
-    hue="Aktueller Finger",
-    )
-
-print(index)
-'''
+if b_TSFEL:
+    save_name = "scatter_plot_2d_PCA_TSFEL_r.svg"
+else:
+    save_name = "scatter_plot_2d_PCA_r.svg"
+fig.savefig(save_name)

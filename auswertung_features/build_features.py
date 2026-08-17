@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy.fft import rfft
 from pathlib import Path
+import tsfel
 
 from parameterraum import DataConfig
 from features import FEATURES_TIME, FEATURES_FREQ
@@ -50,10 +51,11 @@ def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300
 
     return trials
 
-def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig) -> pd.DataFrame:
+def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, b_TSFEL = False) -> pd.DataFrame:
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
     :param data_cfg: Alle Daten, die ausprobiert werden sollen
+    :param b_TSFEL: Nutzt die Liste von TSFEL, Überschreibt die Klasse data_cfg
     :return: dataframe mit den extractions features
     """
     rows = []
@@ -74,7 +76,14 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig) -> pd.DataFram
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            win_dicts = window_features_named(X, cfg= data_cfg)
+            if b_TSFEL:
+                cfg = tsfel.get_features_by_domain()
+                win_dicts = tsfel.time_series_features_extractor(cfg, X, fs = 500).to_dict('list')
+                win_dicts = [{k:v[0] for k, v in win_dicts.items()}]
+
+            else:
+                win_dicts = window_features_named(X, cfg= data_cfg)
+
             # Falls nach Fensterung nix übrig bleibt -> skip
             if len(win_dicts) == 0:
                 continue
