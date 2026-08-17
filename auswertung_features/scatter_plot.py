@@ -14,6 +14,8 @@ meta = pd.read_csv('meta.csv')
 # choose to use LDA or PCA
 str_dim_red = "LDA"
 
+str_hand = "r" # choose the hand
+
 # choose to use TSFEL
 b_TSFEL = False
 
@@ -52,20 +54,20 @@ df = build_feature_table(meta, cfg, b_TSFEL= b_TSFEL)
 df.iloc[:,6:] = StandardScaler().fit_transform(df.iloc[:,6:])
 if str_dim_red == "LDA":
     lda = LinearDiscriminantAnalysis()
-    df_2D_right = lda.fit_transform(df[df["hand"] == "r"].iloc[:, 6:], df[df["hand"] == "r"]["label"])
+    df_2D_right = lda.fit_transform(df[df["hand"] == str_hand].iloc[:, 6:], df[df["hand"] == str_hand]["label"])
 else:
     pca = PCA(n_components=2)
     str_dim_red = "PCA"
-    df_2D_right = pca.fit_transform(df[df["hand"] == "r"].iloc[:, 6:])
+    df_2D_right = pca.fit_transform(df[df["hand"] == str_hand].iloc[:, 6:])
 
 fig = plt.figure()
 ax = fig.add_subplot()
 
-scatter = ax.scatter(df_2D_right[:,0],df_2D_right[:,1],c=df[df["hand"]=="r"]["label"].tolist())
+scatter = ax.scatter(df_2D_right[:,0],df_2D_right[:,1],c=df[df["hand"]==str_hand]["label"].tolist())
 
 legend1 = ax.legend(
     scatter.legend_elements()[0],
-    ["Lf","Rf","Mf","If","th"],
+    ["Lf","Rf","Mf","If","Th"],
     loc="upper right",
     title="Classes",
 )
@@ -73,7 +75,7 @@ ax.add_artist(legend1)
 
 plt.legend()
 if b_TSFEL:
-    save_name = f"scatter_plot_2d_{str_dim_red}_TSFEL_r.svg"
+    save_name = f"scatter_plot_2d_{str_dim_red}_TSFEL_{str_hand}.svg"
 else:
-    save_name = f"scatter_plot_2d_{str_dim_red}_r.svg"
+    save_name = f"scatter_plot_2d_{str_dim_red}_{str_hand}.svg"
 fig.savefig(save_name)
