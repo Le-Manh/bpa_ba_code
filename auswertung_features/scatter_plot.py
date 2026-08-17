@@ -1,15 +1,10 @@
-from typing import Dict, List
-
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-import seaborn as sns
-from seaborn.objects import Plot
+
 
 from auswertung_features.build_features import build_feature_table
-from build_features import load_session, split_into_label_blocks
 from parameterraum import DataConfig
 
 sensor_list = ["sensor_0", "sensor_1", "sensor_2", "sensor_3"]
