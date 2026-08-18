@@ -81,7 +81,7 @@ def outer_eval(feature_df, train_subjects, test_subjects, hand, base_cfg, params
     if df_tr.empty or df_te.empty:
         return {"outer_window_f1": np.nan, "outer_sliding_f1": np.nan}
 
-    feat_cols = [c for c in df.columns if c.startswith("t_") or c.startswith("f_")]
+    feat_cols = [c for c in df.iloc[:,6:].columns]
 
     X_tr = df_tr[feat_cols].to_numpy(np.float32)
     y_tr = df_tr["label"].to_numpy(int)
@@ -148,7 +148,7 @@ def inner_select_params_and_K_sliding(feature_df, subjects_train_outer, hand,
     if df.empty:
         return None
 
-    feat_cols = [c for c in df.columns if c.startswith("t_") or c.startswith("f_")]
+    feat_cols = [c for c in df.iloc[:, 6:].columns]
 
     subjects = np.array(sorted(df["subject_id"].astype(str).unique()))
     cv = GroupKFold(n_splits=inner_splits)
