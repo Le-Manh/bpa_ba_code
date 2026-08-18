@@ -77,7 +77,7 @@ def model_random_forest(**kwargs):
 # This is a model which uses lda as dimension reduction and svc as model
 @register_model_supervised("lda-svm", needs_scaling=False)
 def model_lda_svm(**kwargs):
-    return Pipeline([("scaler", StandardScaler()),("dim-red",LinearDiscriminantAnalysis()),("base",SVC(**kwargs))])
+    return Pipeline([("scaler", StandardScaler()),("dim-red",LinearDiscriminantAnalysis()),("clf",SVC(**kwargs))])
 
 # =========================================================
 # ===              unsupervised models                  ===
