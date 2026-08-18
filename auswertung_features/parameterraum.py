@@ -32,6 +32,7 @@ MODEL_SPACE = {
         #    "random_state": [0],
         #},
         "lda": {},
+        "lda-svm":{"random_state" : [0]}
     },
     #"ann": {
     #    "mlp":{

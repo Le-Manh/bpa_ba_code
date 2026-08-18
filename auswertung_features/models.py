@@ -12,6 +12,8 @@ from sklearn.cluster import KMeans, AgglomerativeClustering
 
 from sklearn.neural_network import MLPClassifier
 
+from sklearn.pipeline import Pipeline
+
 # supervised registry and ANN registry
 ModelFn = Callable[...,Any]
 
@@ -70,6 +72,11 @@ def model_knn(**kwargs):
 @register_model_supervised('randomforest', needs_scaling=False)
 def model_random_forest(**kwargs):
     return RandomForestClassifier(**kwargs)
+
+# This is a model which uses lda as dimension reduction and svc as model
+@register_model_supervised("lda-svm", needs_scaling=True)
+def model_lda_svm(**kwargs):
+    return Pipeline([("dim-red",LinearDiscriminantAnalysis()),("base",SVC(**kwargs))])
 
 # =========================================================
 # ===              unsupervised models                  ===
