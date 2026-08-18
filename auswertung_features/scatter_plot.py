@@ -1,3 +1,5 @@
+import json
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -21,8 +23,8 @@ def main():
 
     cfg = DataConfig(
         trim=0,
-        min_len=500,
-        win=500,
+        min_len=125,
+        win=125,
         step=50,
         feature_set_name="time+freq",
         time_feature_names=(
@@ -35,6 +37,10 @@ def main():
     )
 
     tsfel_cfg = tsfel.get_features_by_domain()
+
+    with open("tsfel_conf.json", "w") as f:
+        json.dump(tsfel_cfg, f, indent=4)
+
     df = build_feature_table(meta, cfg, b_TSFEL=b_TSFEL, tsfel_cfg=tsfel_cfg)
 
     df.iloc[:, 6:] = StandardScaler().fit_transform(df.iloc[:, 6:])
