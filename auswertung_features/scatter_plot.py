@@ -23,8 +23,8 @@ def main():
 
     cfg = DataConfig(
         trim=0,
-        min_len=125,
-        win=125,
+        min_len=110,
+        win=110,
         step=50,
         feature_set_name="time+freq",
         time_feature_names=(
@@ -36,10 +36,7 @@ def main():
         ),
     )
 
-    tsfel_cfg = tsfel.get_features_by_domain()
-
-    with open("tsfel_conf.json", "w") as f:
-        json.dump(tsfel_cfg, f, indent=4)
+    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
 
     df = build_feature_table(meta, cfg, b_TSFEL=b_TSFEL, tsfel_cfg=tsfel_cfg)
 
