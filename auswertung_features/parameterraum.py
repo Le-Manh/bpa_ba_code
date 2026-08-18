@@ -4,8 +4,8 @@ from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = ParameterGrid({
     "trim":    [0],
-    "min_len": [130],
-    "win":     [130],
+    "min_len": [500],
+    "win":     [500],
     "step":    [50],
 })
 def valid_data_params(p: dict) -> bool:
