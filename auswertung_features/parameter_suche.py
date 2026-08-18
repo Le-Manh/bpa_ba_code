@@ -110,7 +110,7 @@ def nested_cv_sliding_hybrid(
                 if df_tr_hand.empty:
                     continue
 
-                feat_cols = [c for c in feat_df[:,6:].columns]
+                feat_cols = [c for c in feat_df.iloc[:,6:].columns]
 
                 # iterate model grids (supervised + ann)
                 for model_type, models in model_space_grids.items():
