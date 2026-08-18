@@ -23,7 +23,7 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 MODEL_SPACE = {
     "supervised": {
         #"linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
-        "svc": {"random_state": 0},
+        "svc": {"random_state": [0]},
         #"knn": {"n_neighbors": [1, 3, 5, 7, 9]},
         #"log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
         #"randomforest": {
