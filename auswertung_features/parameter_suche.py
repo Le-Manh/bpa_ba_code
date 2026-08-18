@@ -7,6 +7,7 @@ import pandas as pd
 import json
 import time
 import tsfel
+import os
 
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
@@ -96,14 +97,20 @@ def nested_cv_sliding_hybrid(
             for dcfg in data_cfgs:
                 k = data_cfg_key(dcfg)
                 if k not in feature_cache:
-                    feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg,b_TSFEL=True,tsfel_cfg=tsfel_cfg)
+                    if os.path.isfile(f"cache/feature_{k}.csv"):
+                        feature_cache[k] = pd.read_csv(f"cache/feature_{k}.csv", index_col = 0,
+                                                       dtype={"subject_id":str})
+                    else:
+                        feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg, b_TSFEL=True,
+                                                               tsfel_cfg=tsfel_cfg)
+                        feature_cache[k].to_csv(f"cache/feature_{k}.csv")
 
                 feat_df = feature_cache[k]
                 df_tr_hand = feat_df[(feat_df["hand"] == hand) & (feat_df["subject_id"].isin(outer_train_set))]
                 if df_tr_hand.empty:
                     continue
 
-                feat_cols = [c for c in feat_df.columns if c.startswith("t_") or c.startswith("f_")]
+                feat_cols = [c for c in feat_df[:,6:].columns]
 
                 # iterate model grids (supervised + ann)
                 for model_type, models in model_space_grids.items():
