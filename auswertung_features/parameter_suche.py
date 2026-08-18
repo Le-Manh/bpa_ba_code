@@ -6,15 +6,13 @@ import numpy as np
 import pandas as pd
 import json
 import time
+import tsfel
 
 from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
 from plot_fn import plot_cm
 from build_features import build_feature_table
 from evaluation import effective_latency_s, topN_params_by_gridsearch, inner_select_params_and_K_sliding, outer_eval, sliding_majority_vote
-
-# TODO implement tsfel instead of own cfg
-import tsfel
 
 from sklearn.model_selection import GroupKFold
 
@@ -74,6 +72,7 @@ def nested_cv_sliding_hybrid(
     outer_cv = GroupKFold(n_splits=outer_splits)
 
     # Cache features per DataConfig
+    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
     feature_cache: dict[str, pd.DataFrame] = {}
 
     results = []
@@ -97,7 +96,7 @@ def nested_cv_sliding_hybrid(
             for dcfg in data_cfgs:
                 k = data_cfg_key(dcfg)
                 if k not in feature_cache:
-                    feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg)
+                    feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg,b_TSFEL=True,tsfel_cfg=tsfel_cfg)
 
                 feat_df = feature_cache[k]
                 df_tr_hand = feat_df[(feat_df["hand"] == hand) & (feat_df["subject_id"].isin(outer_train_set))]

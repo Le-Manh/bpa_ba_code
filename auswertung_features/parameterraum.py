@@ -3,10 +3,10 @@ from typing import Tuple, Any
 from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = ParameterGrid({
-    "trim":    [0, 25, 50],
-    "min_len": [0, 300],
-    "win":     [100, 200, 250, 300],
-    "step":    [25, 50, 75, 100],
+    "trim":    [0],
+    "min_len": [130],
+    "win":     [130],
+    "step":    [50],
 })
 def valid_data_params(p: dict) -> bool:
     # Schrittweite sollte nicht größer als Fenster sein
@@ -22,28 +22,28 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 
 MODEL_SPACE = {
     "supervised": {
-        "linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
-        "svc": {"C": [0.01, 0.1, 1.0, 10.0], "degree": [2,3,4,5,6], "max_iter": [100000]},
+        #"linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
+        "svc": {"random_state": 0},
         #"knn": {"n_neighbors": [1, 3, 5, 7, 9]},
         #"log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
-        "randomforest": {
-            "n_estimators": [300, 600],
-            "max_depth": [None, 10, 20],
-            "random_state": [0],
-        },
+        #"randomforest": {
+        #    "n_estimators": [300, 600],
+        #    "max_depth": [None, 10, 20],
+        #    "random_state": [0],
+        #},
         "lda": {},
     },
-    "ann": {
-        "mlp":{
-            "solver": ["lbfgs","sgd", "adam"],
-            "activation": ["identity", "logistic", "tanh", "relu"],
-            "hidden_layer_sizes": [(50,), (100,), (200,)],
-            "alpha": [1e-4, 1e-3],
-            "max_iter": [10000],
-            "early_stopping":[True],
-            "random_state":[0],
-        }
-    }
+    #"ann": {
+    #    "mlp":{
+    #        "solver": ["lbfgs","sgd", "adam"],
+    #        "activation": ["identity", "logistic", "tanh", "relu"],
+    #        "hidden_layer_sizes": [(50,), (100,), (200,)],
+    #        "alpha": [1e-4, 1e-3],
+    #        "max_iter": [10000],
+    #        "early_stopping":[True],
+    #        "random_state":[0],
+    #    }
+    #}
 }
 ''' not used for now
     "clustering": { # TODO vllt eher Dimensionsreduktion und plotten
