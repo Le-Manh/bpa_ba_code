@@ -171,5 +171,22 @@
     "content": "Dann passt es, **wenn** deine Labels genau die Werte **0,1,2,3,4** haben.\n\nFür 5 Klassen musst du im Modell nur konsequent `num_classes=5` verwenden:\n\n```python\nnum_classes = 5\n\noutputs = tf.keras.layers.Dense(num_classes, activation=\"softmax\")(x)\n\nmodel = tf.keras.Model(inputs, outputs)\nmodel.compile(\n    optimizer=\"adam\",\n    loss=\"sparse_categorical_crossentropy\",\n    metrics=[\"accuracy\"]\n)\n```\n\nWichtig:\n- `sparse_categorical_crossentropy` erwartet Integer-Labels `0..num_classes-1` → bei dir `0..4` ist korrekt.\n- Die Label-Arrays sollten `dtype` int sein (z. B. `np.int32`).\n\nIn deiner `build_xy_from_blocks`-Funktion also **kein** `-1` mehr machen:\n\n```python\ndef build_xy_from_blocks(meta_df, dict_blocks):\n    X_list, y_list = [], []\n    for _, row in meta_df.iterrows():\n        Xb, yb = dict_blocks[int(row[\"block_id\"])]\n        X_list.append(np.asarray(Xb, dtype=np.float32))\n        y_list.append(int(yb))   # bleibt 0..4\n    return X_list, np.asarray(y_list, dtype=np.int32)\n```\n\nOptionaler Check:\n```python\nassert y_tr.min() >= 0 and y_tr.max() <= 4\n```\n\nWenn du willst, kann ich dir auch zeigen, wie du `class_weight` berechnest, falls die 5 Klassen ungleich verteilt sind.",
     "model": "gpt-5.2",
     "attachments": []
+  },
+  {
+    "id": "21.000",
+    "author": "Manh Le",
+    "role": "user",
+    "content": "ds = tf.data.Dataset.from_tensor_slices((X_list, y)) DIe Zeile gibt folgenden Fehler: ValueError: Can&#039;t convert non-rectangular Python sequence to Tensor.",
+    "timestamp": "2026-08-19+16:17",
+    "model": null,
+    "attachments": []
+  },
+  {
+    "id": "22.000",
+    "author": "HAWKI",
+    "role": "assistant",
+    "content": "Der Fehler kommt daher, dass `from_tensor_slices` versucht, `X_list` zuerst in **einen** Tensor zu konvertieren. Das klappt nicht, weil deine Sequenzen unterschiedlich lang sind (nicht-rechteckig).\n\nNimm stattdessen eine Dataset-Erzeugung, die variable Längen erlaubt:\n\n## Variante A (empfohlen): `from_generator`\n```python\nimport tensorflow as tf\nimport numpy as np\n\ndef make_dataset_from_lists(X_list, y, batch_size=32, training=True):\n    X_list = [np.asarray(x, dtype=np.float32) for x in X_list]\n    y = np.asarray(y, dtype=np.int32)\n\n    def gen():\n        for x_i, y_i in zip(X_list, y):\n            yield x_i, y_i\n\n    output_signature = (\n        tf.TensorSpec(shape=(None, 4), dtype=tf.float32),\n        tf.TensorSpec(shape=(), dtype=tf.int32),\n    )\n\n    ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)\n\n    if training:\n        ds = ds.shuffle(buffer_size=len(y), reshuffle_each_iteration=True)\n\n    ds = ds.padded_batch(\n        batch_size=batch_size,\n        padded_shapes=([None, 4], []),\n        padding_values=(0.0, 0)\n    ).prefetch(tf.data.AUTOTUNE)\n\n    return ds\n```\n\nAufruf:\n```python\nds_tr = make_dataset_from_lists(X_tr, y_tr, batch_size=32, training=True)\nds_te = make_dataset_from_lists(X_te, y_te, batch_size=32, training=False)\n```\n\nDamit kannst du variable `(Ti,4)` problemlos verarbeiten.\n\n---\n\n## Variante B: RaggedTensor (geht manchmal, aber nicht immer so glatt)\nMan kann auch RaggedTensor verwenden, aber `Conv1D` arbeitet in der Praxis meist am zuverlässigsten mit **gepaddeten** dichten Tensors. Daher ist A der pragmatische Weg.\n\n---\n\n## Debug-Checks (falls danach noch etwas klemmt)\nStelle sicher:\n```python\nprint(type(X_tr[0]), X_tr[0].shape, X_tr[0].dtype)  # sollte (Ti,4) float32 sein\nprint(y_tr[:5], y_tr.dtype)                         # int32, Werte 0..4\n```\n\nWenn du magst, poste kurz `X_tr[0].shape` und ob wirklich immer zweite Dimension 4 ist (manchmal sind es versehentlich mehr/weniger Spalten).",
+    "model": "gpt-5.2",
+    "attachments": []
   }
 ]
