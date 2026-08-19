@@ -4,8 +4,8 @@ from scipy.fft import rfft
 from pathlib import Path
 import tsfel
 
-from parameterraum import DataConfig
-from features import FEATURES_TIME, FEATURES_FREQ
+from auswertung_features.parameterraum import DataConfig
+from auswertung_features.features import FEATURES_TIME, FEATURES_FREQ
 
 LABEL_COL = "Aktueller Finger"
 TIME_COL = "timestamp_ms"
@@ -22,10 +22,10 @@ def load_session(csv_path: Path) -> pd.DataFrame | None:
     missing = [c for c in [LABEL_COL, TIME_COL] + SENSORS if c not in df.columns] # check if all the csv are full
     if missing:
         raise ValueError(f"Missing columns in {csv_path}: {missing}")
-    df = df.sort_values(TIME_COL).reset_index(drop=True)
+    #df = df.sort_values(TIME_COL).reset_index(drop=True)
     return df
 
-def split_into_label_blocks(df: pd.DataFrame, trim: int = 50, min_len: int = 300) -> list[tuple[np.ndarray, int]]:
+def split_into_label_blocks(df: pd.DataFrame, trim: int = 0, min_len: int = 0) -> list[tuple[np.ndarray, int]]:
     """Segmentiert eine Session in Label-Blöcke. Jeder Block wird zu einem Trial-Kandidaten."""
     finger = df[LABEL_COL].to_numpy()
     change = np.r_[True, finger[1:] != finger[:-1]] #Translates slice objects to concatenation along the first axis, https://numpy.org/doc/stable/reference/generated/numpy.r_.html
