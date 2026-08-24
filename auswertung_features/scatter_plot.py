@@ -24,10 +24,10 @@ def main():
 
     cfg = DataConfig(
         trim=0,
-        min_len=500,
-        win=500,
-        step=500,
-        feature_set_name="tsfel", # allowed are tsfel, time, freq or time+freq
+        min_len=0,
+        win=0,
+        step=50,
+        feature_set_name="default_tsfel", # allowed are default_tsfel, tsfel, time, freq or time+freq
         time_feature_names=(
             "rms","wl","p","min","max","mean","std","var","mav","peak","ptp",
             "crest","skew","kurtosis"
@@ -36,8 +36,13 @@ def main():
             "max_freq","sum_freq","mean_freq","var_freq","skew_freq","kurtosis_freq"
         ),
     )
+    if cfg.feature_set_name == "tsfel":
+        tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
+    elif cfg.feature_set_name == "default_tsfel":
+        tsfel_cfg = tsfel.get_features_by_domain()
+    else:
+        tsfel_cfg = None
 
-    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
     feature_cache = {}
 
     k = data_cfg_key(cfg)
@@ -77,6 +82,8 @@ def main():
     plt.legend()
     if cfg.feature_set_name == "tsfel":
         save_name = f"result_plots/scatter_plot_2d_{str_dim_red}_TSFEL_{str_hand}_win_{cfg.win}_step_{cfg.step}.svg"
+    elif cfg.feature_set_name == "default_tsfel":
+        save_name = f"result_plots/scatter_plot_2d_{str_dim_red}_Default-TSFEL_{str_hand}_win_{cfg.win}_min-len_{cfg.min_len}.svg"
     else:
         save_name = f"result_plots/scatter_plot_2d_{str_dim_red}_{str_hand}.svg"
     fig.savefig(save_name)
