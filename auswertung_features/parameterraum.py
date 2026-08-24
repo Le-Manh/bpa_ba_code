@@ -4,9 +4,9 @@ from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = ParameterGrid({
     "trim":    [0],
-    "min_len": [250],
-    "win":     [250],
-    "step":    [50],
+    "min_len": [500],
+    "win":     [500],
+    "step":    [500],
 })
 def valid_data_params(p: dict) -> bool:
     # Schrittweite sollte nicht größer als Fenster sein
@@ -87,7 +87,8 @@ FEATURE_SET_LIBRARY = {
     #"time_only": {"time": FEATURE_SETS["time"], "freq": []},
     #"freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
     #"time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]}, # in the first run wa sthis the best
-    "tsfel" : {}
+    "default_tsfel" : {},
+    #"tsfel" : {}
 }
 
 @dataclass(frozen=True)

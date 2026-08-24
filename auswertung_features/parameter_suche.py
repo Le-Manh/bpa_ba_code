@@ -22,7 +22,7 @@ EXT_IDX = 2
 FLEX_IDXS = [0, 1, 3]
 
 def data_cfg_key(dcfg: DataConfig)-> str:
-    if dcfg.feature_set_name=="tsfel":
+    if dcfg.feature_set_name=="tsfel" or dcfg.feature_set_name=="default_tsfel":
         return f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-step={dcfg.step}-fs={dcfg.feature_set_name}"
     return (f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-step={dcfg.step}"
             f"-fs={dcfg.feature_set_name}-t={','.join(dcfg.time_feature_names)}-f={','.join(dcfg.freq_feature_names)}")
@@ -75,7 +75,6 @@ def nested_cv_sliding_hybrid(
     outer_cv = GroupKFold(n_splits=outer_splits)
 
     # Cache features per DataConfig
-    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
     feature_cache: dict[str, pd.DataFrame] = {}
 
     results = []
@@ -98,6 +97,10 @@ def nested_cv_sliding_hybrid(
             # ---- inner selection over data_cfg + model ----
             for dcfg in data_cfgs:
                 k = data_cfg_key(dcfg)
+                if dcfg.feature_set_name == "default_tsfel":
+                    tsfel_cfg = tsfel.get_features_by_domain()
+                else:
+                    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
                 if k not in feature_cache:
                     if os.path.isfile(f"cache/feature_{k}.csv"):
                         feature_cache[k] = pd.read_csv(f"cache/feature_{k}.csv", index_col = 0,

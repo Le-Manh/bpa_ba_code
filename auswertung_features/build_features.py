@@ -76,7 +76,7 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, tsfel_cfg = No
             print(f"[WARN] {csv_path}: found blocks={len(blocks)}, labels={labels_found}")
 
         for trial_id, (X, y) in enumerate(blocks):
-            if data_cfg.feature_set_name == "tsfel":
+            if data_cfg.feature_set_name == "tsfel" or data_cfg.feature_set_name == "default_tsfel":
                 win_dicts = tsfel_window_features_named(X, cfg=data_cfg, tsfel_cfg=tsfel_cfg, fs=500)
 
             else:
