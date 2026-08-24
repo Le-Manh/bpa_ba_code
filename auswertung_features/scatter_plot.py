@@ -19,18 +19,17 @@ def main():
     # choose to use LDA or PCA
     str_dim_red = "LDA"
     str_hand = "r"          # choose the hand
-    b_TSFEL = True          # choose to use TSFEL
 
     cfg = DataConfig(
         trim=0,
         min_len=110,
         win=110,
         step=50,
-        feature_set_name="time+freq",
+        feature_set_name="tsfel", # allowed are tsfel, time, freq or time+freq
         time_feature_names=(
             "rms","wl","p","min","max","mean","std","var","mav","peak","ptp",
             "crest","skew","kurtosis"
-        ),
+        ), # the list of time and freq features are skipped if tsfel is used --> tsfel_conf is used
         freq_feature_names=(
             "max_freq","sum_freq","mean_freq","var_freq","skew_freq","kurtosis_freq"
         ),
@@ -38,7 +37,7 @@ def main():
 
     tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf.json")
 
-    df = build_feature_table(meta, cfg, b_TSFEL=b_TSFEL, tsfel_cfg=tsfel_cfg)
+    df = build_feature_table(meta, cfg, tsfel_cfg=tsfel_cfg)
 
     df.iloc[:, 6:] = StandardScaler().fit_transform(df.iloc[:, 6:])
 
