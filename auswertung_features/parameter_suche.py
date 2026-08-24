@@ -23,7 +23,7 @@ FLEX_IDXS = [0, 1, 3]
 
 def data_cfg_key(dcfg: DataConfig)-> str:
     if dcfg.feature_set_name=="tsfel":
-        return f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-fs={dcfg.feature_set_name}"
+        return f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-step={dcfg.step}-fs={dcfg.feature_set_name}"
     return (f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-step={dcfg.step}"
             f"-fs={dcfg.feature_set_name}-t={','.join(dcfg.time_feature_names)}-f={','.join(dcfg.freq_feature_names)}")
 
