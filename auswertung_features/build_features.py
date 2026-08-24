@@ -153,7 +153,7 @@ def tsfel_window_features_named(X: np.ndarray, cfg, tsfel_cfg, fs=500) -> list[d
         feats = feats_df.iloc[0].to_dict()
 
         # optional: Prefix, um TSFEL-Features von eigenen zu trennen
-        feats = {f"ts_{k}": float(v) for k, v in feats.items()}
+        #feats = {f"ts_{k}": float(v) for k, v in feats.items()}
 
         out.append(feats)
 
