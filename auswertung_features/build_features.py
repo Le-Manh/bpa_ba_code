@@ -136,6 +136,12 @@ def tsfel_window_features_named(X: np.ndarray, cfg, tsfel_cfg, fs=500) -> list[d
 
     colnames = [f"s{si}" for si in range(n_sensors)]
 
+    if cfg.win == 0:
+        feats_df = tsfel.time_series_features_extractor(tsfel_cfg, X, fs=fs)
+        feats = feats_df.iloc[0].to_dict()
+        out.append(feats)
+        return out
+
     for start in range(0, N - cfg.win + 1, cfg.step):
         w = X[start:start + cfg.win]
 
