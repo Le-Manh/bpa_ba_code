@@ -103,7 +103,7 @@ def nested_cv_sliding_hybrid(
                         feature_cache[k] = pd.read_csv(f"cache/feature_{k}.csv", index_col = 0,
                                                        dtype={"subject_id":str})
                     else:
-                        feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg, b_TSFEL=True,
+                        feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg,
                                                                tsfel_cfg=tsfel_cfg)
                         feature_cache[k].to_csv(f"cache/feature_{k}.csv")
 

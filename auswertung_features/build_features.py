@@ -78,8 +78,7 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, tsfel_cfg = No
 
         for trial_id, (X, y) in enumerate(blocks):
             if data_cfg.feature_set_name == "tsfel":
-                win_dicts = tsfel.time_series_features_extractor(tsfel_cfg, X, fs = 500, window_size=data_cfg.win).to_dict('list')
-                win_dicts = [{k:v[0] for k, v in win_dicts.items()}]
+                win_dicts = tsfel_window_features_named(X, cfg=data_cfg, tsfel_cfg=tsfel_cfg, fs=500)
 
             else:
                 win_dicts = window_features_named(X, cfg= data_cfg)
@@ -123,6 +122,38 @@ def window_features_named(X: np.ndarray, cfg: DataConfig, eps: float = 1e-8):
                 v = np.asarray(FEATURES_FREQ[name](s, eps=eps)).reshape(-1)
                 for si, val in enumerate(v):
                     feats[f"f_{name}_s{si}"] = float(val)
+
+        out.append(feats)
+
+    return out
+
+def tsfel_window_features_named(X: np.ndarray, cfg, tsfel_cfg, fs=500) -> list[dict]:
+    """
+    X: (N, n_sensors)
+    returns: list of dicts, one dict per window, same windowing as window_features_named
+    """
+    N, n_sensors = X.shape
+    out = []
+
+    colnames = [f"s{si}" for si in range(n_sensors)]
+
+    for start in range(0, N - cfg.win + 1, cfg.step):
+        w = X[start:start + cfg.win]
+
+        # TSFEL erwartet DataFrame/Series; DataFrame ist am robustesten
+        w_df = pd.DataFrame(w, columns=colnames)
+
+        feats_df = tsfel.time_series_features_extractor(
+            tsfel_cfg,
+            w_df,
+            fs=fs,
+            verbose=0
+        )
+        # feats_df hat genau 1 Zeile
+        feats = feats_df.iloc[0].to_dict()
+
+        # optional: Prefix, um TSFEL-Features von eigenen zu trennen
+        feats = {f"ts_{k}": float(v) for k, v in feats.items()}
 
         out.append(feats)
 
