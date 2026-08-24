@@ -22,17 +22,17 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 
 MODEL_SPACE = {
     "supervised": {
-        #"linear-svm": {"C": [0.01, 0.1, 1.0, 10.0]},
-        "svc": {"random_state": [0]},
+        "linear-svm": {"random_state":[0],"C": [0.01, 0.1, 1.0, 10.0], "max_iter":[2000]},
+        "svc": {"random_state": [0], "C": [0.01, 0.1, 1.0, 10.0], "max_iter":[2000]},
         #"knn": {"n_neighbors": [1, 3, 5, 7, 9]},
-        #"log-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
+        #"logs-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
         #"randomforest": {
         #    "n_estimators": [300, 600],
         #    "max_depth": [None, 10, 20],
         #    "random_state": [0],
         #},
         "lda": {},
-        "lda-svm":{"random_state" : [0]}
+        "lda-svm":{"random_state" : [0], "max_iter":[2000]}
     },
     #"ann": {
     #    "mlp":{
@@ -95,9 +95,9 @@ class DataConfig:
     min_len: int
     win: int
     step: int
-    feature_set_name: str
-    time_feature_names: Tuple[str, ...]
-    freq_feature_names: Tuple[str, ...]
+    feature_set_name: str = "tsfel"
+    time_feature_names: Tuple[str, ...] = ("rms", "wl")
+    freq_feature_names: Tuple[str, ...] = ("max_feq", "sum_freq")
 
 @dataclass(frozen=True)
 class ModelConfig:

@@ -9,11 +9,11 @@ import time
 import tsfel
 import os
 
-from parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
+from auswertung_features.parameterraum import MODEL_SPACE, DATA_PARAM_LIST, ModelConfig, DataConfig, FEATURE_SET_LIBRARY
 
-from plot_fn import plot_cm
-from build_features import build_feature_table
-from evaluation import effective_latency_s, topN_params_by_gridsearch, inner_select_params_and_K_sliding, outer_eval, sliding_majority_vote
+from auswertung_features.plot_fn import plot_cm
+from auswertung_features.build_features import build_feature_table
+from auswertung_features.evaluation import effective_latency_s, topN_params_by_gridsearch, inner_select_params_and_K_sliding, outer_eval, sliding_majority_vote
 
 from sklearn.model_selection import GroupKFold
 
@@ -21,9 +21,11 @@ from sklearn.model_selection import GroupKFold
 EXT_IDX = 2
 FLEX_IDXS = [0, 1, 3]
 
-def data_cfg_key(dcfg: DataConfig) -> str:
-    return (f"trim={dcfg.trim}|minlen={dcfg.min_len}|win={dcfg.win}|step={dcfg.step}"
-            f"|fs={dcfg.feature_set_name}|t={','.join(dcfg.time_feature_names)}|f={','.join(dcfg.freq_feature_names)}")
+def data_cfg_key(dcfg: DataConfig)-> str:
+    if dcfg.feature_set_name=="tsfel":
+        return f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-fs={dcfg.feature_set_name}"
+    return (f"trim={dcfg.trim}-minlen={dcfg.min_len}-win={dcfg.win}-step={dcfg.step}"
+            f"-fs={dcfg.feature_set_name}-t={','.join(dcfg.time_feature_names)}-f={','.join(dcfg.freq_feature_names)}")
 
 def build_data_cfgs(data_param_list, feature_set_library) -> list[DataConfig]:
     out: list[DataConfig] = []
@@ -215,7 +217,7 @@ def nested_cv_sliding_hybrid(
                 # outer scores
                 **outer_scores,
 
-                # helpful to log the operational latency
+                # helpful to logs the operational latency
                 "best_ok_latency_s": float(effective_latency_s(best_dcfg.win, best_dcfg.step, vote_K, fs=fs)),
             })
             units_done += 1
