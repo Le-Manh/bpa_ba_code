@@ -4,8 +4,8 @@ from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = ParameterGrid({
     "trim":    [0],
-    "min_len": [500],
-    "win":     [500],
+    "min_len": [250],
+    "win":     [250],
     "step":    [50],
 })
 def valid_data_params(p: dict) -> bool:
@@ -22,8 +22,8 @@ DATA_PARAM_LIST = [p for p in PARAM_GRID if valid_data_params(p)]
 
 MODEL_SPACE = {
     "supervised": {
-        "linear-svm": {"random_state":[0],"C": [0.01, 0.1, 1.0, 10.0], "max_iter":[2000]},
-        "svc": {"random_state": [0], "C": [0.01, 0.1, 1.0, 10.0], "max_iter":[2000]},
+        "linear-svm": {"random_state":[0],"C": [0.01, 0.1, 1.0], "max_iter":[2000]},
+        "svc": {"random_state": [0], "C": [0.01, 0.1, 1.0], "max_iter":[2000]},
         #"knn": {"n_neighbors": [1, 3, 5, 7, 9]},
         #"logs-reg": {"C": [0.1, 1.0, 10.0], "max_iter": [2000]},
         #"randomforest": {
@@ -86,7 +86,8 @@ FEATURE_SETS = {
 FEATURE_SET_LIBRARY = {
     #"time_only": {"time": FEATURE_SETS["time"], "freq": []},
     #"freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
-    "time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]}, # in the first run wa sthis the best
+    #"time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]}, # in the first run wa sthis the best
+    "tsfel" : {}
 }
 
 @dataclass(frozen=True)
