@@ -1,8 +1,8 @@
 from typing import Any, Iterable
 
 
-from parameterraum import ModelConfig
-from models import MODELS_SUPERVISED, MODELS_CLUSTERING
+from auswertung_features.parameterraum import ModelConfig
+from auswertung_features.models import MODELS_SUPERVISED, MODELS_CLUSTERING
 
 from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import StandardScaler

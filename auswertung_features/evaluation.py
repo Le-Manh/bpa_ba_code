@@ -10,7 +10,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.base import clone
 from sklearn.model_selection import GroupKFold, GridSearchCV
 
-from build_models import make_clustering_model, make_supervised_model
+from auswertung_features.build_models import make_clustering_model, make_supervised_model
 
 def sliding_vote_cm_from_dfpred(df_pred: pd.DataFrame, K: int, classes) -> np.ndarray:
     gcols = ["subject_id", "session", "trial_id"] # TODO doppelter Code

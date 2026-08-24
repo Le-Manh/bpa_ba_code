@@ -62,7 +62,7 @@ def model_svc(**kwargs):
 def model_decision_tree(**kwargs):
     return DecisionTreeClassifier(**kwargs)
 
-@register_model_supervised('log-reg', needs_scaling=True)
+@register_model_supervised('logs-reg', needs_scaling=True)
 def model_logistic_regression(**kwargs):
     return LogisticRegression(**kwargs)
 
