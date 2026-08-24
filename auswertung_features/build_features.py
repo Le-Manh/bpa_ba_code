@@ -55,8 +55,7 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, tsfel_cfg = No
     """
     :param meta: meta.csv mit der Übersicht der Messungen und Probanden
     :param data_cfg: Alle Daten, die ausprobiert werden sollen
-    :param b_TSFEL: Nutzt die Liste von TSFEL, Überschreibt die Klasse data_cfg und übernimmt nur win, min_len und trim aus data_cfg
-    :param tsfel_cfg: Nur genutzt, wenn b_TSFEL gesetzt ist, um die Domäne von TSFEL festzulegen
+    :param tsfel_cfg: Nur genutzt, wenn feature_set_name "tsfel" entspricht, um die Domäne von TSFEL festzulegen
     :return: dataframe mit den extractions features
     """
     rows = []
@@ -147,7 +146,6 @@ def tsfel_window_features_named(X: np.ndarray, cfg, tsfel_cfg, fs=500) -> list[d
             tsfel_cfg,
             w_df,
             fs=fs,
-            verbose=0
         )
         # feats_df hat genau 1 Zeile
         feats = feats_df.iloc[0].to_dict()
