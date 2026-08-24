@@ -1,5 +1,5 @@
 hand,best_model_name,n
-l,linear-svm,3
-l,svc,2
-r,svc,3
-r,linear-svm,2
+l,lda,4
+l,lda-svm,1
+r,lda,3
+r,lda-svm,2
