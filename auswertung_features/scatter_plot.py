@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import pandas as pd
-from pandas.core.internals import blocks
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.manifold import LocallyLinearEmbedding
+from sklearn.manifold import MDS, TSNE
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import tsfel
 import os
 
-from auswertung_features.build_features import split_into_label_blocks
 from build_features import build_feature_table
 from parameterraum import DataConfig
 from auswertung_features.parameter_suche import data_cfg_key
@@ -62,9 +62,24 @@ def main():
     if str_dim_red == "LDA":
         lda = LinearDiscriminantAnalysis()
         df_2D_right = lda.fit_transform(df.loc[mask].iloc[:, 6:], df.loc[mask, "label"])
-    else:
+    elif str_dim_red == "lle":
+        lle = LocallyLinearEmbedding(n_components=2, n_neighbors=100)
+        df_2D_right = lle.fit_transform(df.loc[mask].iloc[:, 6:])
+    elif str_dim_red == "MDS":
+        mds = MDS(n_components=2)
+        df_2D_right = mds.fit_transform(df.loc[mask].iloc[:, 6:])
+    elif str_dim_red == "TSNE":
+        tsne = TSNE(n_components=2)
+        df_2D_right = tsne.fit_transform(df.loc[mask].iloc[:, 6:])
+    elif str_dim_red == "TruncatedSVD":
+        truncated_svd = TruncatedSVD(n_components=2)
+        df_2D_right = truncated_svd.fit_transform(df.loc[mask].iloc[:, 6:])
+    elif str_dim_red == "PCA":
         pca = PCA(n_components=2)
         df_2D_right = pca.fit_transform(df.loc[mask].iloc[:, 6:])
+    else:
+        print("Dimensions Reduction Algorithm is not implemented")
+        exit()
 
     fig = plt.figure()
     ax = fig.add_subplot()
