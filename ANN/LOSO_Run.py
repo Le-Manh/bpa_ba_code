@@ -224,16 +224,16 @@ def run_loso(meta, dict_block, epochs=200, batch_size=32, verbose=0, seed=42):
 
     df_folds = pd.DataFrame(fold_metrics).sort_values("left_out_subject")
 
-    print("\n=== LOSO summary ===")
-    print(df_folds[["left_out_subject", "n_val", "val_acc", "val_macro_f1", "val_loss_best", "best_epoch"]])
+    print("\n ## LOSO summary \n")
+    print(df_folds[["left_out_subject", "n_val", "val_acc", "val_macro_f1", "val_loss_best", "best_epoch"]].to_markdown())
 
-    print("\nMean/Std across subjects:")
-    print("val_acc     :", df_folds["val_acc"].mean(), "+/-", df_folds["val_acc"].std())
+    print("\nMean/Std across subjects: \n")
+    print("val_acc     :", df_folds["val_acc"].mean(), "+/-", df_folds["val_acc"].std(), "\n")
     print("val_macro_f1:", df_folds["val_macro_f1"].mean(), "+/-", df_folds["val_macro_f1"].std())
 
     print("\nOverall (micro over all left-out samples):")
-    print("overall_acc     :", overall_acc)
-    print("overall_macro_f1:", overall_f1m)
+    print("\noverall_acc     :", overall_acc)
+    print("\noverall_macro_f1:", overall_f1m)
     print("\nConfusion matrix:\n", cm)
 
     return df_folds, {"overall_acc": overall_acc, "overall_macro_f1": overall_f1m, "cm": cm}
