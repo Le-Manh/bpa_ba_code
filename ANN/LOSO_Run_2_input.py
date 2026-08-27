@@ -249,13 +249,14 @@ def run_loso(meta, dict_block, epochs=200, batch_size=32, verbose=0, seed=42):
 # -----------------------------
 # Usage
 # -----------------------------
-meta = pd.read_csv("../auswertung_features/meta.csv")
-meta_tr: dict[int, pd.DataFrame] = {}
-meta_te: dict[int, pd.DataFrame] = {}
+def main():
+    meta = pd.read_csv("../auswertung_features/meta.csv")
+    meta_tr: dict[int, pd.DataFrame] = {}
+    meta_te: dict[int, pd.DataFrame] = {}
 
-dict_blocks = {}
-meta_blocks = {"subject_id":[], "hand": [], "block_id":[]}
-for i, r in meta.iterrows():
+    dict_blocks = {}
+    meta_blocks = {"subject_id":[], "hand": [], "block_id":[]}
+    for i, r in meta.iterrows():
         csv_path = r["rel_path"]
         df_session = load_session(csv_path)
 
@@ -269,7 +270,10 @@ for i, r in meta.iterrows():
             meta_blocks["hand"].append(r["hand"])
             meta_blocks["block_id"].append(len(dict_blocks))
             dict_blocks[len(dict_blocks)] = block
-meta_blocks = pd.DataFrame(meta_blocks)
-meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
-meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
-df_folds, summary = run_loso(meta_blocks, dict_blocks, epochs=200, batch_size=32, verbose=0)
+    meta_blocks = pd.DataFrame(meta_blocks)
+    meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
+    meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
+    df_folds, summary = run_loso(meta_blocks_r, dict_blocks, epochs=200, batch_size=32, verbose=0)
+
+if __name__ == "__main__":
+    main()
