@@ -157,6 +157,7 @@ def run_loso(meta, dict_block, epochs=200, batch_size=32, verbose=0, seed=42):
     all_subjects = []
 
     for fold, (train_idx, val_idx) in enumerate(logo.split(meta, groups=groups)):
+        tf.keras.backend.clear_session()
         meta_tr = meta.iloc[train_idx]
         meta_va = meta.iloc[val_idx]
 
@@ -271,4 +272,4 @@ for i, r in meta.iterrows():
 meta_blocks = pd.DataFrame(meta_blocks)
 meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
 meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
-df_folds, summary = run_loso(meta_blocks_r, dict_blocks, epochs=200, batch_size=32, verbose=0)
+df_folds, summary = run_loso(meta_blocks, dict_blocks, epochs=200, batch_size=32, verbose=0)
