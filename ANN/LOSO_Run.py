@@ -15,6 +15,7 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
+from sklearn.preprocessing import StandardScaler
 import tsfel
 import os
 
@@ -164,6 +165,11 @@ def run_loso(meta, dict_block, epochs=200, batch_size=32, verbose=0, seed=42):
         pad_to = Xts_tr.shape[1]
         Xts_va, Xf_va, y_va, subj_va = make_xy_from_meta(meta_va, dict_block, pad_to=pad_to)
 
+        # Scale Features
+        scaler = StandardScaler()
+        Xf_tr = scaler.fit_transform(Xf_tr).astype(np.float32)
+        Xf_va = scaler.transform(Xf_va).astype(np.float32)
+
         model = build_model(F=Xf_tr.shape[1])
 
         es = tf.keras.callbacks.EarlyStopping(
@@ -263,5 +269,6 @@ for i, r in meta.iterrows():
             meta_blocks["block_id"].append(len(dict_blocks))
             dict_blocks[len(dict_blocks)] = block
 meta_blocks = pd.DataFrame(meta_blocks)
-
-df_folds, summary = run_loso(meta_blocks, dict_blocks, epochs=200, batch_size=32, verbose=0)
+meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
+meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
+df_folds, summary = run_loso(meta_blocks_r, dict_blocks, epochs=200, batch_size=32, verbose=0)
