@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from ANN.LOSO_Run_2_input import build_model, make_xy_from_meta
 from auswertung_features.build_features import split_into_label_blocks, load_session
-
+'''
 meta = pd.read_csv("../auswertung_features/meta.csv")
 
 dict_blocks = {}
@@ -52,6 +52,10 @@ hist = model.fit(
 )
 
 model.save("models/EMG-CNN-Model-rightHand.keras")
+'''
 
-
-
+model = tf.keras.models.load_model("models/EMG-CNN-Model-rightHand.keras")
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+with open("models/EMG-rightHand.tflite", "wb") as f:
+    f.write(tflite_model)
