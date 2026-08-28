@@ -48,7 +48,7 @@ SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_500HZ;
 #elif SAMPLE_INTERVAL == 1000
 SAMPLE_FREQUENCY sampleRate = SAMPLE_FREQ_1000HZ;
 #endif
-NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ; // This frequency is used to filter line voltages. If the line voltage use 60Hz it can be changed to: NOZCH_FREQ_60HU
+NOTCH_FREQUENCY humFreq = NOTCH_FREQ_50HZ; // This frequency is used to filter line voltages. If the line voltage use 60Hz it can be changed to: NOZCH_FREQ_60HZ
 
 // --- Ringbuffer-Struktur ---
 #define MAX_SAMPLES_PER_FRAME 128
