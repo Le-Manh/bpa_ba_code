@@ -68,7 +68,7 @@ def make_xy_from_meta(meta_df, dict_block, pad_to=None):
 
 feature_cache: dict[str, pd.DataFrame] = {} # global as cache
 
-def tsfel_feature(win: int=0, step: int=50, feature_set_name="default_tsfel"):
+def tsfel_feature(df_data, win: int=0, step: int=50, feature_set_name="default_tsfel"):
     tsfel_cfg = tsfel.get_features_by_domain()#json_path="../auswertung_features/tsfel_conf.json")
     dcfg = DataConfig(
         trim=0,
@@ -83,7 +83,7 @@ def tsfel_feature(win: int=0, step: int=50, feature_set_name="default_tsfel"):
         if os.path.isfile(f"../auswertung_features/cache/feature_{k}.csv"):
             feature_cache[k] = pd.read_csv(f"../auswertung_features/cache/feature_{k}.csv", index_col = 0, dtype={"subject_id":str})
         else:
-            feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg, tsfel_cfg=tsfel_cfg) # TODO this is not working that way
+            feature_cache[k] = build_feature_table(meta=df_data, data_cfg=dcfg, tsfel_cfg=tsfel_cfg) # TODO this is not working that way
             feature_cache[k].to_csv(f"../auswertung_features/cache/feature_{k}.csv")
     return feature_cache[k]
 
