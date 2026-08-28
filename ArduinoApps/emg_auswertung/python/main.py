@@ -1,5 +1,6 @@
 from arduino.app_utils import App, Bridge, Leds
 import time
+import tensorflow as tf
 
 from features import building_feature
 from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
