@@ -5,6 +5,7 @@ from features import building_feature
 from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
 
 TIMING_DEBUG = False # used to measure the time to get one frame
+dict_time_data = {"sensor_0":[], "sensor_1":[], "sensor_2":[], "sensor_3":[]}
 
 def start_stop_recording(whichHand: bool):
     global is_recording, current_finger_state, handState
@@ -51,8 +52,11 @@ def user_loop():
                 if TIMING_DEBUG:
                     start = time.time()
                 
-                df_time_data = parse_emg_frame(bytes(frame))
-                df_feats = building_feature(df_time_data)
+                values = parse_emg_frame(bytes(frame))
+                
+                if values is not None:
+                    for i, value in enumerate(values):
+                        dict_time_data[f"sensor{i}"].append(value)
                 
                 if TIMING_DEBUG:
                     end = time.time()

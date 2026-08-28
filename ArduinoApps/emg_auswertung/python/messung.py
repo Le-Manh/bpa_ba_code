@@ -72,7 +72,7 @@ def open_new_csv():
     print(f"Schreibe live nach {filename}")
 
 
-def parse_emg_frame(payload: bytes) -> pd.DataFrame:
+def parse_emg_frame(payload: bytes) -> tuple[float, float, float, float] | None:
 
     if not payload or len(payload) < 8:
         return
@@ -102,18 +102,11 @@ def parse_emg_frame(payload: bytes) -> pd.DataFrame:
         pass
 
     for i in range(count):
-        if RAW_DATA_IN_BUFFER:
-            dt_ms, v1, v2, v3, v4, rv1, rv2, rv3, rv4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
-        else:
-            dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
+        dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
 
         if i > 0:
             current_time_ms += dt_ms
 
-        row = {
-            "sensor_0": v1, "sensor_1": v2, "sensor_2": v3, "sensor_3": v4
-        }
-
         offset += SAMPLE_SIZE
     
-        return pd.DataFrame(row)
+        return (v1, v2, v3, v4)
