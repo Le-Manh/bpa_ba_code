@@ -38,7 +38,7 @@ def make_xy_from_meta(meta_df, dict_block, pad_to=None):
     X_feat_list = []
     y_list = []
     subjects = meta_df["subject_id"].to_numpy()
-    X_feat = tsfel_feature()
+    X_feat = tsfel_feature(meta_df)
 
     # Collect ts + labels
     lengths = []
@@ -83,7 +83,7 @@ def tsfel_feature(win: int=0, step: int=50, feature_set_name="default_tsfel"):
         if os.path.isfile(f"../auswertung_features/cache/feature_{k}.csv"):
             feature_cache[k] = pd.read_csv(f"../auswertung_features/cache/feature_{k}.csv", index_col = 0, dtype={"subject_id":str})
         else:
-            feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg, tsfel_cfg=tsfel_cfg)
+            feature_cache[k] = build_feature_table(meta=meta, data_cfg=dcfg, tsfel_cfg=tsfel_cfg) # TODO this is not working that way
             feature_cache[k].to_csv(f"../auswertung_features/cache/feature_{k}.csv")
     return feature_cache[k]
 
