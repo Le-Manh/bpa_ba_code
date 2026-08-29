@@ -323,20 +323,21 @@ def suggested_grids():
         (500, 500),  # 1.0s, no overlap
         (750, 750),  # 1.5s, no overlap
     ]
-    # second round: choose based on best T from round 1
-    grid_round2_500 = [
-        (500, 500),
-        (500, 250),  # 50% overlap
+    # second round: Testing if teh amount of windows is part of why it works so well
+    grid_round2_ensembleeffect = [
+        (500, 250),
+        (750, 375),  # 50% overlap
     ]
     grid_round2_250 = [
         (250, 250),
         (250, 125),
     ]
-    grid_round2_750 = [
-        (750, 750),
-        (750, 375),
+    grid_round2_compute = [
+        (250, 250),
+        (500, 250),
+        (500, 500),
     ]
-    return grid_round1, grid_round2_250, grid_round2_500, grid_round2_750
+    return grid_round1, grid_round2_250, grid_round2_ensembleeffect, grid_round2_compute
 
 
 # ----------------------------
