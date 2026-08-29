@@ -145,3 +145,68 @@ This is the same as on the right hand
 | 500 |      500 |  0.804774 | 0.228507 |   0.817204 |  0.212927 |         56.8182 |          140.409 |           65.4091 |
 Best config: 500 250
 and somehow it is even better
+
+## Tested without time_data
+Put the Time_data to zeros to see which Branch is dominating:
+=== Running LOSO for T=500, stride=250 (opt: macroF1_block) ===
+[Fold 00] est windows: train=4096 (avg 3.44/block), val=268 (avg 4.47/block)
+E0000 00:00:1788031942.527296 1037714 cuda_platform.cc:52] failed call to cuInit: INTERNAL: CUDA error: Failed call to cuInit: UNKNOWN ERROR (303)
+Fold 00 | subj 1 | blocks=60 windows=268 | acc_block=1.000 | macroF1_block=1.000
+[Fold 01] est windows: train=4044 (avg 3.46/block), val=320 (avg 4.00/block)
+Fold 01 | subj 2 | blocks=80 windows=320 | acc_block=1.000 | macroF1_block=1.000
+[Fold 02] est windows: train=3814 (avg 3.60/block), val=550 (avg 2.89/block)
+Fold 02 | subj 3 | blocks=190 windows=550 | acc_block=0.695 | macroF1_block=0.699
+[Fold 03] est windows: train=4241 (avg 3.48/block), val=123 (avg 4.10/block)
+Fold 03 | subj 4 | blocks=30 windows=123 | acc_block=0.500 | macroF1_block=0.500
+[Fold 04] est windows: train=4270 (avg 3.50/block), val=94 (avg 3.13/block)
+Fold 04 | subj 5 | blocks=30 windows=94 | acc_block=1.000 | macroF1_block=1.000
+[Fold 05] est windows: train=4247 (avg 3.48/block), val=117 (avg 3.90/block)
+Fold 05 | subj 6 | blocks=30 windows=117 | acc_block=0.833 | macroF1_block=0.798
+[Fold 06] est windows: train=4266 (avg 3.50/block), val=98 (avg 3.27/block)
+Fold 06 | subj 7 | blocks=30 windows=98 | acc_block=1.000 | macroF1_block=1.000
+[Fold 07] est windows: train=4268 (avg 3.51/block), val=96 (avg 2.74/block)
+Fold 07 | subj 8 | blocks=35 windows=96 | acc_block=0.857 | macroF1_block=0.836
+[Fold 08] est windows: train=4272 (avg 3.50/block), val=92 (avg 3.07/block)
+Fold 08 | subj 9 | blocks=30 windows=92 | acc_block=1.000 | macroF1_block=1.000
+[Fold 09] est windows: train=4127 (avg 3.51/block), val=237 (avg 3.16/block)
+Fold 09 | subj 10 | blocks=75 windows=237 | acc_block=1.000 | macroF1_block=1.000
+[Fold 10] est windows: train=4214 (avg 3.51/block), val=150 (avg 3.00/block)
+Fold 10 | subj 11 | blocks=50 windows=150 | acc_block=0.900 | macroF1_block=0.893
+[Fold 11] est windows: train=4227 (avg 3.54/block), val=137 (avg 2.49/block)
+Fold 11 | subj 12 | blocks=55 windows=137 | acc_block=0.709 | macroF1_block=0.653
+[Fold 12] est windows: train=4203 (avg 3.50/block), val=161 (avg 3.22/block)
+Fold 12 | subj 13 | blocks=50 windows=161 | acc_block=0.700 | macroF1_block=0.713
+[Fold 13] est windows: train=4239 (avg 3.53/block), val=125 (avg 2.50/block)
+Fold 13 | subj 14 | blocks=50 windows=125 | acc_block=0.600 | macroF1_block=0.467
+[Fold 14] est windows: train=4199 (avg 3.50/block), val=165 (avg 3.30/block)
+Fold 14 | subj 15 | blocks=50 windows=165 | acc_block=0.500 | macroF1_block=0.500
+[Fold 15] est windows: train=3983 (avg 3.46/block), val=381 (avg 3.81/block)
+Fold 15 | subj 16 | blocks=100 windows=381 | acc_block=0.650 | macroF1_block=0.629
+[Fold 16] est windows: train=4216 (avg 3.51/block), val=148 (avg 2.96/block)
+Fold 16 | subj 17 | blocks=50 windows=148 | acc_block=1.000 | macroF1_block=1.000
+[Fold 17] est windows: train=4070 (avg 3.39/block), val=294 (avg 5.88/block)
+Fold 17 | subj 18 | blocks=50 windows=294 | acc_block=1.000 | macroF1_block=1.000
+[Fold 18] est windows: train=4165 (avg 3.47/block), val=199 (avg 3.98/block)
+Fold 18 | subj 19 | blocks=50 windows=199 | acc_block=0.900 | macroF1_block=0.893
+[Fold 19] est windows: train=4139 (avg 3.45/block), val=225 (avg 4.50/block)
+Fold 19 | subj 20 | blocks=50 windows=225 | acc_block=1.000 | macroF1_block=1.000
+[Fold 20] est windows: train=4129 (avg 3.44/block), val=235 (avg 4.70/block)
+Fold 20 | subj 21 | blocks=50 windows=235 | acc_block=1.000 | macroF1_block=1.000
+[Fold 21] est windows: train=4215 (avg 3.53/block), val=149 (avg 2.71/block)
+Fold 21 | subj 22 | blocks=55 windows=149 | acc_block=0.818 | macroF1_block=0.808
+|   T |   stride |   f1_mean |   f1_std |   acc_mean |   acc_std |   n_blocks_mean |   n_windows_mean |   best_epoch_mean |
+|----:|---------:|----------:|---------:|-----------:|----------:|----------------:|-----------------:|------------------:|
+| 500 |      250 |  0.835921 | 0.189008 |   0.848295 |  0.175287 |         56.8182 |          198.364 |           62.1818 |
+Best config: 500 250
+
+It does like the whole work
+
+## Tested with stable tsfel
+|   T |   stride |   f1_mean |   f1_std |   acc_mean |   acc_std |   n_blocks_mean |   n_windows_mean |   best_epoch_mean |
+|----:|---------:|----------:|---------:|-----------:|----------:|----------------:|-----------------:|------------------:|
+| 250 |      250 |  0.837456 | 0.19557  |   0.847761 |  0.176858 |         56.8182 |          255.136 |           54.8636 |
+| 500 |      500 |  0.833033 | 0.184895 |   0.842057 |  0.168651 |         56.8182 |          140.409 |           60.4091 |
+| 500 |      250 |  0.81988  | 0.20632  |   0.837009 |  0.183461 |         56.8182 |          198.364 |           52.0909 |
+Best config: 250 250
+
+This time TSFEL has been build with an window of 2000 Samples every time so the Arduino builds TSFEL more consistent
