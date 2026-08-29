@@ -135,3 +135,13 @@ Confusion matrix: \
  [ 47  48  78  35  42] \
  [ 45  37  52  43  73] \
  [ 43  41  64  37  65]]
+
+# run a little window with the feature table as global
+This is the same as on the right hand
+|   T |   stride |   f1_mean |   f1_std |   acc_mean |   acc_std |   n_blocks_mean |   n_windows_mean |   best_epoch_mean |
+|----:|---------:|----------:|---------:|-----------:|----------:|----------------:|-----------------:|------------------:|
+| 500 |      250 |  0.838562 | 0.189894 |   0.848353 |  0.17799  |         56.8182 |          198.364 |           62.1818 |
+| 250 |      250 |  0.835324 | 0.197207 |   0.847426 |  0.176799 |         56.8182 |          255.136 |           58.5909 |
+| 500 |      500 |  0.804774 | 0.228507 |   0.817204 |  0.212927 |         56.8182 |          140.409 |           65.4091 |
+Best config: 500 250
+and somehow it is even better
