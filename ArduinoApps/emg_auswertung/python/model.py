@@ -36,9 +36,7 @@ def get_prediction(df_ts: pd.DataFrame, df_feat: pd.DataFrame) -> int:
     X_feat = np.asarray(df_feat, dtype=np.float32)
     X_feat = scaler.transform(X_feat).astype(np.float32)
     X_ts = np.asarray(df_ts, dtype=np.float32)
-    X_ts = np.reshape(X_ts, (1, 1, 4)).astype(np.float32)
-    print(X_ts.shape)
-
+    
     model.set_tensor(in_details[0]["index"], X_feat)
     model.set_tensor(in_details[1]["index"], X_ts)
 
