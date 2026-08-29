@@ -1,6 +1,7 @@
 from arduino.app_utils import App, Bridge, Leds
 import time
 import pandas as pd
+import numpy as np
 
 from features import building_feature
 from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
@@ -49,12 +50,13 @@ def user_loop():
             if frame:
                 if TIMING_DEBUG:
                     start = time.time()
-                
                 values = parse_emg_frame(bytes(frame))
-                
                 if values is not None:
-                    for i, value in enumerate(values):
-                        dict_time_data[f"sensor_{i}"].append(value)
+                     for (ts, v1, v2, v3, v4) in values:
+                        dict_time_data["sensor_0"].append(v1)
+                        dict_time_data["sensor_1"].append(v2)
+                        dict_time_data["sensor_2"].append(v3)
+                        dict_time_data["sensor_3"].append(v4)
                
                 if TIMING_DEBUG:
                     end = time.time()
