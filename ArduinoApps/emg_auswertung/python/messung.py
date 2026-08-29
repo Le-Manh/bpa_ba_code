@@ -6,7 +6,6 @@ from arduino.app_utils import App, Bridge, Leds
 
 DATA_DEBUG = False # used to rename output data to debug.csv instead of messung_[rl]_[0-9]+.csv
 
-is_recording = False
 csvfile = None
 writer = None
 measurement_number = -1 #if it's -1 sth is wrong

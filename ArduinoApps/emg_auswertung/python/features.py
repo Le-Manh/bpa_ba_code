@@ -14,4 +14,6 @@ def building_feature(data: pd.DataFrame, fs:int = 500) -> pd.DataFrame:
     """
     global TSFEL_CFG
     feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, data, fs=fs)
+    feats_df.to_csv("tsfel.csv")
+    
     return feats_df

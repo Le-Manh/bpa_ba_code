@@ -1,15 +1,19 @@
 from arduino.app_utils import App, Bridge, Leds
 import time
-import tensorflow as tf
+import pandas as pd
 
 from features import building_feature
 from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
+from model import load_model, get_prediction
+
 
 TIMING_DEBUG = False # used to measure the time to get one frame
 dict_time_data = {"sensor_0":[], "sensor_1":[], "sensor_2":[], "sensor_3":[]}
+is_recording = False
+handState = True
 
 def start_stop_recording(whichHand: bool):
-    global is_recording, current_finger_state, handState
+    global is_recording, dict_time_data, handState
     handState = whichHand
     if handState: # LED Feedback zur hand. blue is left and nothing is right
         Leds.set_led2_color(0,0,0)
@@ -18,27 +22,20 @@ def start_stop_recording(whichHand: bool):
 
     is_recording = not is_recording
 
-    if is_recording:
-        if current_finger_state == dict_finger["littleFinger"]:
-            if DATA_DEBUG:
-                print("Aufnahme gestartet...")
-            open_new_csv()
+    if is_recording:       
         Leds.set_led1_color(0, 1, 0)
+        dict_time_data = {"sensor_0":[], "sensor_1":[], "sensor_2":[], "sensor_3":[]} # clean dict
     else:
         Leds.set_led1_color(1, 0, 0)
-        if current_finger_state == dict_finger["thumb"]:
-            if DATA_DEBUG:
-                print("Aufnahme gestoppt. csv wird geschlossen")
-            close_csv()
-            current_finger_state = dict_finger["littleFinger"]
-            Leds.set_led1_color(0, 0, 0)
-        else:
-            current_finger_state += 1
-    if DATA_DEBUG:
-        print(f"der derzeitige Finger ist: Finger {current_finger_state}") 
+        df_time_data = pd.DataFrame(dict_time_data)
+        df_feature = building_feature(df_time_data)
+        prediction = get_prediction(df_time_data, df_feature)
+        print(prediction)
+        
 
 
 def user_loop():
+    global is_recording
     if is_recording:
         try:
             #Datenblock vom MCU holen
@@ -57,8 +54,8 @@ def user_loop():
                 
                 if values is not None:
                     for i, value in enumerate(values):
-                        dict_time_data[f"sensor{i}"].append(value)
-                
+                        dict_time_data[f"sensor_{i}"].append(value)
+               
                 if TIMING_DEBUG:
                     end = time.time()
                     dt_parsing_emg_frame = end - start
@@ -71,5 +68,7 @@ def user_loop():
 
 if __name__ == "__main__":
     Bridge.provide("start_stop", start_stop_recording)
-    
+    load_model()
+    is_recording = False
+    handState = True
     App.run(user_loop=user_loop)
