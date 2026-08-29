@@ -71,7 +71,7 @@ def open_new_csv():
     print(f"Schreibe live nach {filename}")
 
 
-def parse_emg_frame(payload: bytes) -> tuple[float, float, float, float] | None:
+def parse_emg_frame(payload: bytes) -> list[tuple[float, float, float, float, float]] | None:
 
     if not payload or len(payload) < 8:
         return
@@ -99,13 +99,14 @@ def parse_emg_frame(payload: bytes) -> tuple[float, float, float, float] | None:
         # nicht zwingend fatal, aber hilfreich beim Debuggen
         # print(f"Len mismatch exp={expected_len} got={len(payload)}")
         pass
-
+    samples = []
     for i in range(count):
         dt_ms, v1, v2, v3, v4 = struct.unpack_from(SAMPLE_FORMAT, payload, offset)
 
         if i > 0:
             current_time_ms += dt_ms
 
+        samples.append((current_time_ms, v1, v2, v3, v4))
         offset += SAMPLE_SIZE
-    
-        return (v1, v2, v3, v4)
+
+    return samples
