@@ -6,6 +6,7 @@ import tsfel
 
 from auswertung_features.parameterraum import DataConfig
 from auswertung_features.features import FEATURES_TIME, FEATURES_FREQ
+from ANN.loso_windowed_blockfeat import block_to_windows_postpad
 
 LABEL_COL = "Aktueller Finger"
 TIME_COL = "timestamp_ms"
@@ -77,7 +78,8 @@ def build_feature_table(meta: pd.DataFrame, data_cfg: DataConfig, tsfel_cfg = No
 
         for trial_id, (X, y) in enumerate(blocks):
             if data_cfg.feature_set_name == "tsfel" or data_cfg.feature_set_name == "default_tsfel":
-                win_dicts = tsfel_window_features_named(X, cfg=data_cfg, tsfel_cfg=tsfel_cfg, fs=500)
+                X = block_to_windows_postpad(X, T=2000, stride=2000)
+                win_dicts = tsfel_window_features_named(X[0], cfg=data_cfg, tsfel_cfg=tsfel_cfg, fs=500)
 
             else:
                 win_dicts = window_features_named(X, cfg= data_cfg)

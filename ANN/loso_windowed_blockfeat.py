@@ -205,8 +205,8 @@ def run_loso_windowed(
               f"val={est_va['total_windows_est']} (avg {est_va['avg_windows_per_block_est']:.2f}/block)")
 
         # Feature tables fold-specific (avoid leakage)
-        feat_tr = tsfel_feature_fn(meta_tr, step=0)
-        feat_va = tsfel_feature_fn(meta_va, step=0)
+        feat_tr = tsfel_feature_fn(meta_tr)
+        feat_va = tsfel_feature_fn(meta_va)
 
         # Windowed datasets (TS windowed, features replicated)
         Xts_tr, Xf_tr, y_tr, subj_tr, bid_tr = make_xy_from_meta_windowed_blockfeat(
@@ -222,7 +222,7 @@ def run_loso_windowed(
         Xf_va = scaler.transform(Xf_va).astype(np.float32)
 
         # Build model with fixed T
-        model = build_model_fn(T=T, F=Xf_tr.shape[1])
+        model = build_model_fn(F=Xf_tr.shape[1])
 
         es = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss", patience=patience, restore_best_weights=True
@@ -231,17 +231,19 @@ def run_loso_windowed(
             monitor="val_loss", factor=0.5, patience=max(2, patience // 2), min_lr=1e-6
         )
 
-        hist = model.fit(
-            {"ts": Xts_tr, "feat": Xf_tr}, y_tr,
-            validation_data=({"ts": Xts_va, "feat": Xf_va}, y_va),
+        hist = model.fit( Xf_tr, y_tr,
+            validation_data=(Xf_va, y_va),
             epochs=epochs,
             batch_size=batch_size,
             callbacks=[es, rlr],
             verbose=verbose,
             shuffle=True
         )
-
-        prob_win = model.predict({"ts": Xts_va, "feat": Xf_va}, verbose=0)  # (Nwin, C)
+        """"
+        Nva_shape = Xf_va.shape
+        zero_ts = np.zeros(Nva_shape, dtype=np.float32)
+        """
+        prob_win = model.predict(Xf_va, verbose=0)  # (Nwin, C)
 
         # Aggregate to block-level
         uniq_bids, prob_block, y_pred_block = aggregate_mean_softmax(prob_win, bid_va)
@@ -328,16 +330,15 @@ def suggested_grids():
         (500, 250),
         (750, 375),  # 50% overlap
     ]
-    grid_round2_250 = [
-        (250, 250),
-        (250, 125),
+    grid_round_feat_ts_test = [
+        (500, 250),
     ]
     grid_round2_compute = [
         (250, 250),
         (500, 250),
         (500, 500),
     ]
-    return grid_round1, grid_round2_250, grid_round2_ensembleeffect, grid_round2_compute
+    return grid_round1, grid_round_feat_ts_test, grid_round2_ensembleeffect, grid_round2_compute
 
 
 # ----------------------------

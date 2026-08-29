@@ -34,7 +34,7 @@ def main():
     meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
 
     # global feature table
-    feat_table = tsfel_feature(meta_blocks, win= 0, step=0)
+    feat_table = tsfel_feature(meta_blocks, win= 0, step=50)
 
     # Window-Parameter
     T = 500
