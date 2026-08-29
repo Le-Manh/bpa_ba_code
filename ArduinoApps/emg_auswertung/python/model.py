@@ -33,7 +33,7 @@ def load_model():
 def get_prediction_windows(X_ts_N: np.ndarray, df_feat: pd.DataFrame) -> np.ndarray:
     global scaler, model, in_details, out_details
 
-    N = X_ts_N.shape[0]
+    N = X_ts_N.shape[0] # X_ts is (N, 500, 4) --> N is bc of the stack of 
 
     # Features: 1x624 (für alle Fenster gleich)
     X_feat = np.asarray(df_feat, dtype=np.float32)          # shape (1,624) oder (624,)
