@@ -38,7 +38,7 @@ def make_xy_from_meta(meta_df, dict_block, pad_to=None):
     X_feat_list = []
     y_list = []
     subjects = meta_df["subject_id"].to_numpy()
-    X_feat = tsfel_feature(meta_df)
+    X_feat = tsfel_feature(meta_df, step = 0)
 
     # Collect ts + labels
     lengths = []
@@ -90,10 +90,10 @@ def tsfel_feature(df_data, win: int=0, step: int=50, feature_set_name="default_t
 # -----------------------------
 # 2) Model factory
 # -----------------------------
-def build_model(F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
+def build_model(T = 1000, F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
     init = tf.keras.initializers.get(initializer)
 
-    ts_inputs = tf.keras.layers.Input(shape=(None, 4), name="ts")
+    ts_inputs = tf.keras.layers.Input(shape=(T, 4), name="ts")
     x = tf.keras.layers.Conv1D(
         8, 7, padding="same", activation="leaky_relu",
         kernel_initializer=init,
@@ -171,7 +171,7 @@ def run_loso(meta, dict_block, epochs=200, batch_size=32, verbose=0, seed=42):
         Xf_tr = scaler.fit_transform(Xf_tr).astype(np.float32)
         Xf_va = scaler.transform(Xf_va).astype(np.float32)
 
-        model = build_model(F=Xf_tr.shape[1])
+        model = build_model(T=pad_to,F=Xf_tr.shape[1])
 
         es = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss", patience=15, restore_best_weights=True
