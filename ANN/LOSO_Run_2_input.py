@@ -141,7 +141,41 @@ def build_model(T = 1000, F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
     )
     return model
 
+def build_model_feat(F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
+    init = tf.keras.initializers.get(initializer)
 
+    feat_in = tf.keras.layers.Input(shape=(F,), name="feat")
+    f = tf.keras.layers.LayerNormalization()(feat_in)
+    f = tf.keras.layers.Dropout(0.3)(f)
+    f = tf.keras.layers.Dense(
+        128, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(f)
+    f = tf.keras.layers.Dropout(0.5)(f)
+    f = tf.keras.layers.Dense(
+        64, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(f)
+
+    h = tf.keras.layers.Dense(
+        128, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(f)
+    h = tf.keras.layers.Dropout(0.3)(h)
+    outputs = tf.keras.layers.Dense(5, activation="softmax")(h)
+
+    model = tf.keras.Model(inputs=feat_in, outputs=outputs)
+
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(lr),
+        loss=loss,
+        metrics=["accuracy", tf.keras.metrics.SparseCategoricalCrossentropy(name="ce")]
+    )
+    return model
 # -----------------------------
 # 3) LOSO CV loop
 # -----------------------------
