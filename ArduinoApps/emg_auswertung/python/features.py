@@ -1,5 +1,4 @@
 import tsfel
-from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import numpy as np
 

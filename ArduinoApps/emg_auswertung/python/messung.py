@@ -1,7 +1,4 @@
-import csv
 import struct
-import os
-import pandas as pd
 from arduino.app_utils import App, Bridge, Leds
 
 DATA_DEBUG = False # used to rename output data to debug.csv instead of messung_[rl]_[0-9]+.csv
