@@ -26,7 +26,8 @@ def start_stop_recording():
         df_time_data = pd.DataFrame(dict_time_data)
         df_feature = building_feature(df_time_data)
         X_ts = block_to_win(df_time_data, T=500,stride=250) # window length 500 samples and stride 250. On these numbers were the model trained
-        
+        prediction = predict_block_from_windows(X_ts, df_feature)
+
 
 def user_loop():
     global is_recording, prediction
