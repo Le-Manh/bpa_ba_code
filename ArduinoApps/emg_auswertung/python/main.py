@@ -3,9 +3,9 @@ import time
 import pandas as pd
 import numpy as np
 
-from features import building_feature
+from features import building_feature, block_to_win
 from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
-from model import load_model, get_prediction
+from model import load_model, predict_block_from_windows
 
 
 TIMING_DEBUG = False # used to measure the time to get one frame
@@ -30,7 +30,8 @@ def start_stop_recording(whichHand: bool):
         Leds.set_led1_color(1, 0, 0)
         df_time_data = pd.DataFrame(dict_time_data)
         df_feature = building_feature(df_time_data)
-        prediction = get_prediction(df_time_data, df_feature)
+        X_ts = block_to_win(df_time_data, T=500,stride=250) # window length 500 samples and stride 250. On these numbers were the model trained
+        prediction = predict_block_from_windows(X_ts, df_feature)
         print(prediction)
         
 
