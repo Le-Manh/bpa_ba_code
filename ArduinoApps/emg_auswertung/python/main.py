@@ -4,23 +4,18 @@ import pandas as pd
 import numpy as np
 
 from features import building_feature, block_to_win
-from messung import dict_finger, current_finger_state, open_new_csv, parse_emg_frame, DATA_DEBUG
+from messung import parse_emg_frame, DATA_DEBUG
 from model import load_model, predict_block_from_windows
 
 
 TIMING_DEBUG = False # used to measure the time to get one frame
 dict_time_data = {"sensor_0":[], "sensor_1":[], "sensor_2":[], "sensor_3":[]}
 is_recording = False
-handState = True
+prediction = None
 
-def start_stop_recording(whichHand: bool):
-    global is_recording, dict_time_data, handState
-    handState = whichHand
-    if handState: # LED Feedback zur hand. blue is left and nothing is right
-        Leds.set_led2_color(0,0,0)
-    else:
-        Leds.set_led2_color(0,0,1)
-
+def start_stop_recording():
+    global is_recording, dict_time_data, prediction
+    
     is_recording = not is_recording
 
     if is_recording:       
@@ -31,13 +26,10 @@ def start_stop_recording(whichHand: bool):
         df_time_data = pd.DataFrame(dict_time_data)
         df_feature = building_feature(df_time_data)
         X_ts = block_to_win(df_time_data, T=500,stride=250) # window length 500 samples and stride 250. On these numbers were the model trained
-        prediction = predict_block_from_windows(X_ts, df_feature)
-        print(prediction)
         
 
-
 def user_loop():
-    global is_recording
+    global is_recording, prediction
     if is_recording:
         try:
             #Datenblock vom MCU holen
@@ -67,6 +59,11 @@ def user_loop():
         except Exception as e:
             print(f"Fehler bei Bridge.call: {e}")
 
+    if prediction is not None:
+        Bridge.notify("draw_finger", prediction)
+        prediction = None
+        time.sleep(3)
+        Bridge.notify("draw_ready")
     time.sleep(0.01) # Alle 10ms nach neuen Daten fragen
 
 if __name__ == "__main__":
@@ -74,4 +71,5 @@ if __name__ == "__main__":
     load_model()
     is_recording = False
     handState = True
+    Bridge.notify("draw_ready")
     App.run(user_loop=user_loop)

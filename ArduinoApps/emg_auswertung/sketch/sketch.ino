@@ -76,7 +76,8 @@ void readAllSensors(uint32_t t_ms);
 MsgPack::bin_t<uint8_t> get_emg_frame();
 void calibrateSensors();
 uint16_t crc16_update(uint16_t crc, uint8_t data);
-void hochzaehlenFinger();
+void draw_finger(int pred);
+void draw_ready();
 
 //interrupt und Feedback-LED
 const byte ledPin = 12;
@@ -89,7 +90,7 @@ volatile bool start_stop_mpu = false;
 volatile uint32_t last_mess_btn_us = 0;
 volatile uint32_t last_hand_btn_us = 0;
 
-const uint32_t DEBOUNCE_US = 50000; // 50 ms
+const uint32_t DEBOUNCE_US = 100000; // 100 ms
 
 //Interrupt (ISR)
 void button_interrupt_messung()
@@ -100,18 +101,6 @@ void button_interrupt_messung()
   ledState = !ledState;
   messungState = !messungState;
   start_stop_mpu = !start_stop_mpu;
-}
-
-// Interrupt Hand Wechsel
-const byte fingerWechselPin = 6;
-volatile bool rightHand = true;
-// ISR
-void button_interrupt_handswitch()
-{ 
-  uint32_t now = micros();
-  if (now - last_hand_btn_us < DEBOUNCE_US) return;
-  last_hand_btn_us = now;
-  rightHand = !rightHand;
 }
 
 // Timer-Callback wird bei jedem Intervall aufgerufen
@@ -128,32 +117,20 @@ static void onSampleTimer(struct k_timer *timer_id) {
 
 // --- LED Matrix Feedback ---
 Arduino_LED_Matrix matrix;
-enum fingerState {littleFinger= 0, ringFinger,middleFinger,indexFinger,thumb};
-int currentFinger;
 uint8_t* matrix_feedback[] = {littleFinger_Frame, ringFinger_Frame, middleFinger_Frame, indexFinger_Frame, thumb_Frame};
-bool changeFinger = false;
-
-// define a function to expose this to the MPU
-// So the MPU knows, if it has to decode more data
-bool more_values_in_buffer(){
-#if RAWDATA_INTO_BUFFER == 1
-  return true;
-#else
-  return false;
-#endif
-}
 
 void setup() {
     // start Matrix and feedback that MCU is running
     matrix.begin();
     matrix.setGrayscaleBits(1);
     matrix.draw(Hi_Frame); 
-    currentFinger = littleFinger;
 
     // Bridge initialisieren und Funktion bereitstellen
     Bridge.begin(); //Bridge is communicating with baud 115200
     Bridge.provide("get_emg_frame", get_emg_frame);
-    Bridge.provide("more_values_in_buffer", more_values_in_buffer);
+    Bridge.provide("draw_ready", draw_ready);
+    Bridge.provide("draw_finger", draw_finger);
+    
   
     Monitor.begin(); //Monitor can only be 9600 baud
     // Sensoren und Filter initialisieren
@@ -178,13 +155,8 @@ void setup() {
     //Interrupt-Setup
     pinMode(interruptPin,INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(interruptPin),button_interrupt_messung,FALLING); //attachInterrupt(pin, ISR, mode) 
-    pinMode(fingerWechselPin, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(fingerWechselPin),button_interrupt_handswitch, FALLING);
 
     analogReadResolution(14);
-
-    //Setup beendet:
-    matrix.draw(matrix_feedback[currentFinger]);
 }
 
 void loop() {
@@ -212,17 +184,9 @@ void loop() {
       if (start_stop_mpu) {
         //Die Aufnahme der Messungen wird für jeden Finger einmal getriggert, um die Kommunikation zu verringern
         noInterrupts();
-        Bridge.notify("start_stop", rightHand);
+        Bridge.notify("start_stop");
         start_stop_mpu = !start_stop_mpu;
         interrupts();
-        // changes Finger and Matrix only on the 2nd push of the interrupt
-        if (changeFinger) {
-          hochzaehlenFinger();
-          matrix.draw(matrix_feedback[currentFinger]);
-          }
-        changeFinger = !changeFinger;
-        }
-      }
     
       #if TIMING_DEBUG == 1   
       // Einmal pro Sekunde einen Bericht ausgeben nur im DEBUG wichtig
@@ -237,6 +201,8 @@ void loop() {
       }
       #endif
     // Die Bridge-Kommunikation läuft im Hintergrund und blockiert den Loop nicht.
+        }
+    }
 }
 
 void readAllSensors(uint32_t t_ms) {
@@ -394,13 +360,10 @@ uint16_t crc16_update(uint16_t crc, uint8_t data) {
     return crc;
 }
 
-// Hilfsfunktion zum Beschreiben der LED Matrix
-void hochzaehlenFinger()
-{
-  if(currentFinger != thumb)
-  {
-    currentFinger ++; // ist der currentFinger != Daumen --> wird hochgezaehlt
-  }else{ 
-    currentFinger = littleFinger;     // anderenfalls wird currentFinger = kleiner Finger gesetzt
-  }
+void draw_finger(int pred) {
+  matrix.draw(matrix_feedback[pred]);
+}
+
+void draw_ready() {
+  matrix.draw(ready_frame);
 }

@@ -6,20 +6,7 @@ from arduino.app_utils import App, Bridge, Leds
 
 DATA_DEBUG = False # used to rename output data to debug.csv instead of messung_[rl]_[0-9]+.csv
 
-csvfile = None
-writer = None
-measurement_number = -1 #if it's -1 sth is wrong
-
-dict_finger = {"littleFinger": 0, "ringFinger": 1, "middleFinger": 2, "indexFinger": 3, "thumb": 4}
-current_finger_state = dict_finger["littleFinger"]
-handState = True
-
-RAW_DATA_IN_BUFFER = Bridge.call("more_values_in_buffer")
-
-if RAW_DATA_IN_BUFFER:
-    SAMPLE_FORMAT = '<BffffHHHH'   # dt + 4 floats + 4x uint16 raw
-else:
-    SAMPLE_FORMAT = '<Bffff'
+SAMPLE_FORMAT = '<Bffff'
 SAMPLE_SIZE = struct.calcsize(SAMPLE_FORMAT)
 
 def crc16_update(crc, data):
@@ -27,48 +14,6 @@ def crc16_update(crc, data):
     for _ in range(8):
         crc = (crc >> 1) ^ 0xA001 if (crc & 1) else (crc >> 1)
     return crc
-
-
-def get_next_available_filename(hand: str):
-    n = get_next_measurement_number()
-    while True:
-        filename = f"python/messdaten/messung_{hand}_{n}.csv"
-        if not os.path.exists(filename):
-            return filename, n
-        n += 1
-
-def get_next_measurement_number():
-    """Liest die letzte Messnummer aus der Datei und erhöht sie um 1"""
-    try:
-        with open("python/messdaten/last_measurement.txt", "r") as f:
-            last_number = int(f.read().strip())
-    except FileNotFoundError:
-        last_number = 0
-    except ValueError:
-        print("Fehler: 'last_measurement.txt' enthält keine gültige Zahl. Starte bei 1.")
-        last_number = 0
-    return last_number + 1
-
-def open_new_csv():
-    global csvfile, writer, measurement_number
-    hand = "r" if handState else "l"
-    if DATA_DEBUG:
-        filename = f"python/messdaten/debug_{hand}.csv"
-        measurement_number = 0 #to prevent compatibility issues
-    else:
-        filename, measurement_number = get_next_available_filename(hand)
-
-    csvfile = open(filename, 'w', newline='', encoding='utf-8')
-    if RAW_DATA_IN_BUFFER:
-        fieldnames = ["Aktueller Finger","timestamp_ms","sensor_0","sensor_1","sensor_2","sensor_3",
-                      "raw_sensor_0","raw_sensor_1","raw_sensor_2","raw_sensor_3"]
-    else:
-        fieldnames = ["Aktueller Finger","timestamp_ms","sensor_0","sensor_1","sensor_2","sensor_3"]
-
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-    writer.writeheader()
-    csvfile.flush()
-    print(f"Schreibe live nach {filename}")
 
 
 def parse_emg_frame(payload: bytes) -> list[tuple[float, float, float, float, float]] | None:
