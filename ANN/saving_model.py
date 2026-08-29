@@ -12,7 +12,7 @@ def main():
     meta = pd.read_csv("../auswertung_features/meta.csv")
 
     dict_blocks = {}
-    meta_blocks = {"subject_id":[], "hand": [], "block_id":[]}
+    meta_blocks = {"subject_id":[], "hand": [],"rel_path":[], "block_id":[]}
     for i, r in meta.iterrows():
             csv_path = r["rel_path"]
             df_session = load_session(csv_path)
@@ -25,13 +25,14 @@ def main():
             for block in blocks:
                 meta_blocks["subject_id"].append(r["subject_id"])
                 meta_blocks["hand"].append(r["hand"])
+                meta_blocks["rel_path"].append(r["rel_path"])
                 meta_blocks["block_id"].append(len(dict_blocks))
                 dict_blocks[len(dict_blocks)] = block
     meta_blocks = pd.DataFrame(meta_blocks)
     meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
     meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
 
-    Xts_tr, Xf_tr, y_tr, subj_tr = make_xy_from_meta(meta_blocks_r, dict_blocks, pad_to=None)
+    Xts_tr, Xf_tr, y_tr, subj_tr = make_xy_from_meta(meta_blocks, dict_blocks, pad_to=None)
 
     # Scale Features
     scaler = StandardScaler()
