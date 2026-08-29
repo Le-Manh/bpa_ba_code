@@ -14,7 +14,8 @@ def building_feature(data: pd.DataFrame, fs:int = 500) -> pd.DataFrame:
     """
     global TSFEL_CFG
     X_feat = np.asarray(data, dtype=np.float32)
-    feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, X_feat, fs=fs)
+    X_feat = block_to_windows_postpad(X_feat, T=2000, stride=2000)
+    feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, X_feat[0], fs=fs)
     
     return feats_df
 

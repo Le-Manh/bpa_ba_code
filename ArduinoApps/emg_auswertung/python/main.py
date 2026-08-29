@@ -71,6 +71,5 @@ if __name__ == "__main__":
     Bridge.provide("start_stop", start_stop_recording)
     load_model()
     is_recording = False
-    handState = True
     Bridge.notify("draw_ready")
     App.run(user_loop=user_loop)
