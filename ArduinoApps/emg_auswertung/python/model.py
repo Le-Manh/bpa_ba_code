@@ -21,7 +21,7 @@ def load_model():
     out_details = model.get_output_details()
 
     if CHECK_MODEL_DETAILS:
-        # Debug: Anzahl Inputs prüfen (du erwartest 2)
+        # Debug: Anzahl Inputs prüfen
         print("num_inputs:", len(in_details))
         for i, d in enumerate(in_details):
             print("input", i, "shape", d["shape"], "dtype", d["dtype"], "index", d["index"])
