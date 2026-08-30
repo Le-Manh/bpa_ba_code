@@ -1,5 +1,5 @@
 from loso_windowed_blockfeat import run_window_grid_loso, suggested_grids
-from ANN.LOSO_Run_2_input import tsfel_feature, build_model, build_model_feat
+from ANN.LOSO_Run_2_input import tsfel_feature, build_model, build_model_feat, build_model_GRU
 import pandas as pd
 from auswertung_features.build_features import split_into_label_blocks, load_session
 
@@ -35,8 +35,8 @@ meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
 df_folds_all, df_summary = run_window_grid_loso(
     meta_blocks, dict_blocks,
     tsfel_feature_fn=tsfel_feature,
-    build_model_fn=build_model,
-    grid=[(2000,2000)],
+    build_model_fn=build_model_GRU,
+    grid=[(500,500)],
     L_max = 2000, # maximale Window Länge
     epochs=200,
     batch_size=32,

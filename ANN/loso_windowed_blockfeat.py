@@ -128,6 +128,42 @@ def make_xy_from_meta_windowed_blockfeat(meta_df, dict_block, feat_table, T: int
 
     return X_ts, X_feat, y, subjects, block_ids
 
+def make_xy_blocks(meta_df, dict_block, feat_dict, T: int, stride: int, W_max: int):
+    bids = meta_df["block_id"].astype(int).to_numpy()
+    subjs = meta_df["subject_id"].to_numpy()
+
+    N = len(meta_df)
+    # Features dimension aus erstem Eintrag
+    F = len(next(iter(feat_dict.values())))
+
+    X_ts  = np.zeros((N, W_max, T, 4), dtype=np.float32)
+    X_feat = np.zeros((N, F), dtype=np.float32)
+    X_wlen = np.zeros((N,), dtype=np.int32)
+    y      = np.zeros((N,), dtype=np.int32)
+
+    subjects = np.array(subjs)
+    block_ids = np.array(bids, dtype=np.int32)
+
+    for i, bid in enumerate(bids):
+        x_ts_raw, y_i = dict_block[int(bid)]
+        x_ts_raw = np.asarray(x_ts_raw, dtype=np.float32)
+
+        x_feat = np.asarray(feat_dict[int(bid)], dtype=np.float32)
+        X_feat[i] = x_feat
+
+        windows = block_to_windows_postpad(x_ts_raw, T=T, stride=stride)  # list/array of (T,4)
+        wlen = min(len(windows), W_max)
+        X_wlen[i] = wlen
+        y[i] = int(y_i)
+
+        # pack into fixed tensor
+        for j in range(wlen):
+            X_ts[i, j] = windows[j]
+        # rest stays zero-padded
+
+    return X_ts, X_feat, X_wlen, y, subjects, block_ids
+
+
 def gen_meta_windowed_blocks(meta_df, dict_block, feat_table, T: int, stride: int, W_max: int):
     bids = meta_df["block_id"].to_numpy()
     subjs = meta_df["subject_id"].to_numpy()
@@ -137,11 +173,16 @@ def gen_meta_windowed_blocks(meta_df, dict_block, feat_table, T: int, stride: in
         x_ts, y = dict_block[bid_i]
         x_ts = np.asarray(x_ts, dtype=np.float32)
 
-        fb = feat_table.iloc[bid_i, 6:]              # block-globale Features
+        fb = feat_table[bid_i]             # block-globale Features
         x_feat = np.asarray(fb, dtype=np.float32)
 
         windows = block_to_windows_postpad(x_ts, T=T, stride=stride)
         ts_win, wlen = windows_to_fixed_tensor(windows, W_max=W_max, T=T)
+
+        if not np.isfinite(ts_win).all():
+            raise ValueError(f"non-finite ts in block {bid_i}")
+        if not np.isfinite(x_feat).all():
+            raise ValueError(f"non-finite feat in block {bid_i}")
 
         # Output: (inputs_dict, label) – optional kannst du subj/bid extra ausgeben
         yield (
@@ -255,28 +296,20 @@ def run_loso_windowed(
 
         # Scale features (fit only on training windows)
         scaler = StandardScaler()
-        Xf_tr = scaler.fit(Xf_tr)
+        scaler.fit(Xf_tr)
 
         X_all = feat_global.loc[:, feat_cols].to_numpy(np.float32)
         X_all_scaled = scaler.transform(X_all)
         feat_table_scaled = feat_global.copy()
         feat_table_scaled.loc[:, feat_cols] = X_all_scaled
 
-        output_signature = (
-            {
-                "ts": tf.TensorSpec(shape=(W_max, T, 4), dtype=tf.float32),
-                "feat": tf.TensorSpec(shape=(Xf_tr.shape[1],), dtype=tf.float32),
-                "wlen": tf.TensorSpec(shape=(), dtype=tf.int32),
-            },
-            tf.TensorSpec(shape=(), dtype=tf.int32)  # sparse label
-        )
+        feat_cols = feat_table_scaled.columns[6:]
+        feat_by_id = feat_table_scaled[feat_cols]
+        feat_dict = {int(bid): row.to_numpy(np.float32) for bid, row in feat_by_id.iterrows()}
 
-        ds_tr = tf.data.Dataset.from_generator(
-            lambda: gen_meta_windowed_blocks(meta_tr, dict_block, feat_table_scaled, T, stride, W_max),
-            output_signature=output_signature
-        )
+        Xts_tr, Xf_tr, Xw_tr, y_tr, *_ = make_xy_blocks(meta_tr, dict_block, feat_dict, T, stride, W_max)
+        Xts_va, Xf_va, Xw_va, y_va, *_ = make_xy_blocks(meta_va, dict_block, feat_dict, T, stride, W_max)
 
-        ds_tr = ds_tr.shuffle(2048).batch(32).prefetch(tf.data.AUTOTUNE)
         # Build model with fixed T
         model = build_model_fn(W=W_max,T=T,F=Xf_tr.shape[1])
 
@@ -287,27 +320,31 @@ def run_loso_windowed(
             monitor="val_loss", factor=0.5, patience=max(2, patience // 2), min_lr=1e-6
         )
 
-        hist = model.fit(ds_tr,
-            validation_data=({"ts": Xts_va, "feat": Xf_va}, y_va),
+        steps_per_epoch = int(np.ceil(len(meta_tr) / batch_size))
+        validation_steps = int(np.ceil(len(meta_va) / batch_size))
+
+        hist = model.fit({"ts": Xts_tr, "feat": Xf_tr, "wlen": Xw_tr}, y_tr,
+            validation_data=({"ts": Xts_va, "feat": Xf_va, "wlen": Xw_va}, y_va),
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
             epochs=epochs,
-            batch_size=batch_size,
             callbacks=[es, rlr],
             verbose=verbose,
+            batch_size=batch_size,
             shuffle=True
         )
         """"
         Nva_shape = Xf_va.shape
         zero_ts = np.zeros(Nva_shape, dtype=np.float32)
         """
-        prob_win = model.predict({"ts": Xts_va, "feat": Xf_va}, verbose=0)  # (Nwin, C)
+        feat_zero = np.zeros(Xf_va.shape, dtype=np.float32)
+        prob_block = model.predict({"ts": Xts_va, "feat": feat_zero, "wlen": Xw_va}, verbose=0)  # (Nblocks, C)
+        y_pred = prob_block.argmax(axis=1)
+        y_true = y_va
 
-        # Aggregate to block-level
-        uniq_bids, prob_block, y_pred_block = aggregate_mean_softmax(prob_win, bid_va)
-        y_true_block = np.array([int(dict_block[int(bid)][1]) for bid in uniq_bids], dtype=np.int64)
-
-        acc = accuracy_score(y_true_block, y_pred_block)
-        f1m = f1_score(y_true_block, y_pred_block, average="macro")
-        cm = confusion_matrix(y_true_block, y_pred_block)
+        acc = accuracy_score(y_true, y_pred)
+        f1m = f1_score(y_true, y_pred, average="macro")
+        cm = confusion_matrix(y_true, y_pred)
 
         subject_left_out = meta_va["subject_id"].unique()
         subject_left_out = subject_left_out[0] if len(subject_left_out) == 1 else subject_left_out.tolist()
@@ -317,8 +354,7 @@ def run_loso_windowed(
             "left_out_subject": subject_left_out,
             "T": int(T),
             "stride": int(stride),
-            "n_val_blocks": int(len(uniq_bids)),
-            "n_val_windows": int(len(y_va)),
+            "n_val_blocks": int(len(meta_va)),
             "best_epoch": int(np.argmin(hist.history["val_loss"]) + 1) if "val_loss" in hist.history else None,
             "val_acc_block": float(acc),
             "val_macro_f1_block": float(f1m),
@@ -326,7 +362,7 @@ def run_loso_windowed(
         })
 
         print(f"Fold {fold:02d} | subj {subject_left_out} | "
-              f"blocks={len(uniq_bids)} windows={len(y_va)} | "
+              f"blocks={len(meta_va)} | "
               f"acc_block={acc:.3f} | macroF1_block={f1m:.3f}")
 
     return pd.DataFrame(fold_metrics)
@@ -342,7 +378,6 @@ def summarize_results(df_runs: pd.DataFrame):
         acc_mean=("val_acc_block", "mean"),
         acc_std =("val_acc_block", "std"),
         n_blocks_mean=("n_val_blocks", "mean"),
-        n_windows_mean=("n_val_windows", "mean"),
         best_epoch_mean=("best_epoch", "mean"),
     )
     g = g.sort_values(["f1_mean", "acc_mean"], ascending=False).reset_index(drop=True)

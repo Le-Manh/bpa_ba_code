@@ -210,3 +210,24 @@ It does like the whole work
 Best config: 250 250
 
 This time TSFEL has been build with an window of 2000 Samples every time so the Arduino builds TSFEL more consistent
+
+### It doesn't really makes sense to build a multi input
+|    T |   stride |   f1_mean |   f1_std |   acc_mean |   acc_std |   n_blocks_mean |   n_windows_mean |   best_epoch_mean |
+|-----:|---------:|----------:|---------:|-----------:|----------:|----------------:|-----------------:|------------------:|
+| 2000 |     2000 |  0.826061 | 0.151483 |   0.836371 |  0.139018 |         56.8182 |               57 |           57.9091 |
+Best config: 2000 2000
+This is only the Feature branch
+
+|   T |   stride |   f1_mean |   f1_std |   acc_mean |   acc_std |   n_blocks_mean |   best_epoch_mean |
+|----:|---------:|----------:|---------:|-----------:|----------:|----------------:|------------------:|
+| 500 |      500 |  0.825316 | 0.178807 |   0.842963 |  0.155961 |         56.8182 |           60.6818 |
+| 500 |      250 |  0.812324 | 0.186374 |   0.82495  |  0.165855 |         56.8182 |           52.6818 |
+| 250 |      250 |  0.803525 | 0.170833 |   0.816716 |  0.153481 |         56.8182 |           49.8636 |
+Best config: 500 500
+Tried a GRU config where I consider the whole sequence as sequence of windows
+
+|   T |   stride |   f1_mean |    f1_std |   acc_mean |   acc_std |   n_blocks_mean |   best_epoch_mean |
+|----:|---------:|----------:|----------:|-----------:|----------:|----------------:|------------------:|
+| 500 |      500 |  0.150724 | 0.0650103 |   0.234603 | 0.0522784 |         56.8182 |           60.6818 |
+Best config: 500 500
+This is if you train the feature branch but then cut it off

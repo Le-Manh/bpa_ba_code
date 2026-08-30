@@ -186,23 +186,24 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
 
     # Window-Encoder
     w_in = tf.keras.layers.Input(shape=(T, 4))
-    x = tf.keras.layers.Conv1D(16, 7, padding="same",
+    x = tf.keras.layers.Conv1D(8, 7, padding="same",
                                activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
                                kernel_initializer=init)(w_in)
     x = tf.keras.layers.MaxPool1D(2)(x)
-    x = tf.keras.layers.Conv1D(32, 5, padding="same", activation="leaky_relu",
+    x = tf.keras.layers.Conv1D(16, 5, padding="same", activation="leaky_relu",
                                kernel_regularizer=tf.keras.regularizers.l2(wd),
                                kernel_initializer=init
                                )(x)
     x = tf.keras.layers.GlobalAveragePooling1D()(x)
-    x = tf.keras.layers.Dense(64, activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
+    x = tf.keras.layers.Dense(32, activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
                                kernel_initializer=init)(x)
     win_encoder = tf.keras.Model(w_in, x)
 
-    z = tf.keras.layers.TimeDistributed(win_encoder)(ts_inputs)  # (B, W, 64)
+    z = tf.keras.layers.TimeDistributed(win_encoder)(ts_inputs)  # (B, W, 32)
 
-    mask = tf.sequence_mask(wlen_in, maxlen=W)
-    z = tf.keras.layers.GRU(64)(z, mask=mask)
+    mask = mask_wrapper()(wlen_in=wlen_in,W=W)
+    z = tf.keras.layers.GRU(16,activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
+                               kernel_initializer=init)(z, mask=mask)
 
     feat_in = tf.keras.layers.Input(shape=(F,), name="feat")
     f = tf.keras.layers.LayerNormalization()(feat_in)
@@ -235,9 +236,17 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
     model.compile(
         optimizer=tf.keras.optimizers.Adam(lr),
         loss=loss,
-        metrics=["accuracy", tf.keras.metrics.SparseCategoricalCrossentropy(name="ce")]
+        metrics=["accuracy", tf.keras.metrics.SparseCategoricalCrossentropy(name="ce")],
     )
     return model
+
+import keras
+
+@keras.saving.register_keras_serializable()
+class mask_wrapper(tf.keras.layers.Layer):
+    def call(self, wlen_in, W):
+        return tf.sequence_mask(wlen_in, maxlen=W)
+
 # -----------------------------
 # 3) LOSO CV loop
 # -----------------------------
