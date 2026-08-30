@@ -59,7 +59,7 @@ def main():
     feat_by_id = feat_table_scaled[feat_cols]
     feat_dict = {int(bid): row.to_numpy(np.float32) for bid, row in feat_by_id.iterrows()}
 
-    X_ts, X_f, Xw_tr, y_tr, *_ = make_xy_blocks(meta_blocks, dict_blocks,feat_dict, T=T, stride=stride, W_max=W_max)
+    X_ts, X_f, Xw_tr,mask, y_tr, *_ = make_xy_blocks(meta_blocks, dict_blocks,feat_dict, T=T, stride=stride, W_max=W_max)
 
 
     pickle.dump(scaler, open("models/scaler_features_GRU.pkl", "wb"), protocol=5)
@@ -73,7 +73,7 @@ def main():
 
     model = build_model_GRU(W=W_max,T=T, F=X_f.shape[1])
     model.fit(
-        {"ts": X_ts, "feat": X_f, "wlen": Xw_tr}, y_tr ,
+        {"ts": X_ts, "feat": X_f, "mask": mask}, y_tr ,
         epochs=200,
         batch_size=32,
         callbacks=[es, rlr],
@@ -86,6 +86,7 @@ def main():
     #model = tf.keras.models.load_model("models/EMG-GRU-Model.keras")
     print(model.summary())
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
+
     converter.target_spec.supported_ops = [
         tf.lite.OpsSet.TFLITE_BUILTINS,
         tf.lite.OpsSet.SELECT_TF_OPS

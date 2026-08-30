@@ -15,7 +15,7 @@ def building_feature(data: pd.DataFrame, fs:int = 500) -> pd.DataFrame:
     X_feat = np.asarray(data, dtype=np.float32)
     X_feat = block_to_windows_postpad(X_feat, T=2000, stride=2000)
     feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, X_feat[0], fs=fs)
-    feats_df.to_csv("tsfel_debug.csv")
+    #feats_df.to_csv("tsfel_debug.csv")
     
     return feats_df
 
@@ -47,10 +47,23 @@ def block_to_windows_postpad(x_ts: np.ndarray, T: int, stride: int):
 
     return wins
 
-def block_to_win(x_ts: np.ndarray, T: int, stride:int):
-
+def block_to_win(x_ts: np.ndarray, T: int, stride:int, W_max = None) -> np.ndarray | tuple[np.ndarray,int, np.ndarray]:
     X_ts_list =[]
     windows = block_to_windows_postpad(x_ts, T, stride)
+
+    if W_max is not None:
+        wlen = min(len(windows), W_max)
+
+        X_ts_block = np.zeros((1, W_max, T, 4), dtype=np.float32)
+        for j in range(wlen):
+            X_ts_block[0, j, :, :] = windows[j]
+
+        mask_block = (np.arange(W_max)[None, :] < wlen)  # (1,W_max) bool
+        print("W_max:", W_max, "len(windows):", len(windows), "wlen:", wlen)
+        print("X_ts_block.shape:", X_ts_block.shape)
+        print("mask_block.shape:", mask_block.shape)
+
+        return X_ts_block, wlen, mask_block
 
     for w in windows:
         X_ts_list.append(w)

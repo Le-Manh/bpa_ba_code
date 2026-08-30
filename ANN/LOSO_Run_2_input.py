@@ -182,7 +182,7 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
     init = tf.keras.initializers.get(initializer)
 
     ts_inputs = tf.keras.layers.Input(shape=(W, T, 4), name="ts")
-    wlen_in = tf.keras.layers.Input(shape=(),dtype=tf.int32, name="wlen")
+    mask_in = tf.keras.layers.Input(shape=(W,),dtype=tf.bool, name="mask")
 
     # Window-Encoder
     w_in = tf.keras.layers.Input(shape=(T, 4))
@@ -201,9 +201,8 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
 
     z = tf.keras.layers.TimeDistributed(win_encoder)(ts_inputs)  # (B, W, 32)
 
-    mask = mask_wrapper()(wlen_in=wlen_in,W=W)
     z = tf.keras.layers.GRU(16,activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
-                               kernel_initializer=init)(z, mask=mask)
+                               kernel_initializer=init)(z, mask=mask_in)
 
     feat_in = tf.keras.layers.Input(shape=(F,), name="feat")
     f = tf.keras.layers.LayerNormalization()(feat_in)
@@ -230,7 +229,7 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
     h = tf.keras.layers.Dropout(0.3)(h)
     outputs = tf.keras.layers.Dense(5, activation="softmax")(h)
 
-    model = tf.keras.Model(inputs=[ts_inputs, feat_in, wlen_in], outputs=outputs)
+    model = tf.keras.Model(inputs=[ts_inputs, feat_in, mask_in], outputs=outputs)
 
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
     model.compile(
@@ -242,10 +241,19 @@ def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=
 
 import keras
 
-@keras.saving.register_keras_serializable()
+@keras.saving.register_keras_serializable(package="Custom")
 class mask_wrapper(tf.keras.layers.Layer):
+    def __init__(self, W=7, **kwargs):
+        super().__init__(**kwargs)
+        self.W = W
+
     def call(self, wlen_in, W):
         return tf.sequence_mask(wlen_in, maxlen=W)
+
+    def get_config(self):
+        cfg = super().get_config()
+        cfg.update({"W": self.W})
+        return cfg
 
 # -----------------------------
 # 3) LOSO CV loop

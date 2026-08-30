@@ -161,7 +161,9 @@ def make_xy_blocks(meta_df, dict_block, feat_dict, T: int, stride: int, W_max: i
             X_ts[i, j] = windows[j]
         # rest stays zero-padded
 
-    return X_ts, X_feat, X_wlen, y, subjects, block_ids
+    mask = (np.arange(W_max)[None, :] < X_wlen[:, None])  # (N,W) bool
+
+    return X_ts, X_feat, X_wlen, mask, y, subjects, block_ids
 
 
 def gen_meta_windowed_blocks(meta_df, dict_block, feat_table, T: int, stride: int, W_max: int):
@@ -307,8 +309,8 @@ def run_loso_windowed(
         feat_by_id = feat_table_scaled[feat_cols]
         feat_dict = {int(bid): row.to_numpy(np.float32) for bid, row in feat_by_id.iterrows()}
 
-        Xts_tr, Xf_tr, Xw_tr, y_tr, *_ = make_xy_blocks(meta_tr, dict_block, feat_dict, T, stride, W_max)
-        Xts_va, Xf_va, Xw_va, y_va, *_ = make_xy_blocks(meta_va, dict_block, feat_dict, T, stride, W_max)
+        Xts_tr, Xf_tr, Xw_tr,mask_tr, y_tr, *_ = make_xy_blocks(meta_tr, dict_block, feat_dict, T, stride, W_max)
+        Xts_va, Xf_va, Xw_va,mask_va, y_va, *_ = make_xy_blocks(meta_va, dict_block, feat_dict, T, stride, W_max)
 
         # Build model with fixed T
         model = build_model_fn(W=W_max,T=T,F=Xf_tr.shape[1])
@@ -323,8 +325,8 @@ def run_loso_windowed(
         steps_per_epoch = int(np.ceil(len(meta_tr) / batch_size))
         validation_steps = int(np.ceil(len(meta_va) / batch_size))
 
-        hist = model.fit({"ts": Xts_tr, "feat": Xf_tr, "wlen": Xw_tr}, y_tr,
-            validation_data=({"ts": Xts_va, "feat": Xf_va, "wlen": Xw_va}, y_va),
+        hist = model.fit({"ts": Xts_tr, "feat": Xf_tr, "mask": mask_tr}, y_tr,
+            validation_data=({"ts": Xts_va, "feat": Xf_va, "mask": mask_va}, y_va),
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
             epochs=epochs,
@@ -338,7 +340,7 @@ def run_loso_windowed(
         zero_ts = np.zeros(Nva_shape, dtype=np.float32)
         """
         feat_zero = np.zeros(Xf_va.shape, dtype=np.float32)
-        prob_block = model.predict({"ts": Xts_va, "feat": feat_zero, "wlen": Xw_va}, verbose=0)  # (Nblocks, C)
+        prob_block = model.predict({"ts": Xts_va, "feat": feat_zero, "mask": mask_va}, verbose=0)  # (Nblocks, C)
         y_pred = prob_block.argmax(axis=1)
         y_true = y_va
 
