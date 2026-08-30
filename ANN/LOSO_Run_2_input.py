@@ -13,6 +13,7 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from keras.src.initializers import initializer
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
@@ -168,6 +169,67 @@ def build_model_feat(F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
     outputs = tf.keras.layers.Dense(5, activation="softmax")(h)
 
     model = tf.keras.Model(inputs=feat_in, outputs=outputs)
+
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(lr),
+        loss=loss,
+        metrics=["accuracy", tf.keras.metrics.SparseCategoricalCrossentropy(name="ce")]
+    )
+    return model
+
+def build_model_GRU(W = 7, T = 500, F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
+    init = tf.keras.initializers.get(initializer)
+
+    ts_inputs = tf.keras.layers.Input(shape=(W, T, 4), name="ts")
+    wlen_in = tf.keras.layers.Input(shape=(),dtype=tf.int32, name="wlen")
+
+    # Window-Encoder
+    w_in = tf.keras.layers.Input(shape=(T, 4))
+    x = tf.keras.layers.Conv1D(16, 7, padding="same",
+                               activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
+                               kernel_initializer=init)(w_in)
+    x = tf.keras.layers.MaxPool1D(2)(x)
+    x = tf.keras.layers.Conv1D(32, 5, padding="same", activation="leaky_relu",
+                               kernel_regularizer=tf.keras.regularizers.l2(wd),
+                               kernel_initializer=init
+                               )(x)
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x = tf.keras.layers.Dense(64, activation="leaky_relu", kernel_regularizer=tf.keras.regularizers.l2(wd),
+                               kernel_initializer=init)(x)
+    win_encoder = tf.keras.Model(w_in, x)
+
+    z = tf.keras.layers.TimeDistributed(win_encoder)(ts_inputs)  # (B, W, 64)
+
+    mask = tf.sequence_mask(wlen_in, maxlen=W)
+    z = tf.keras.layers.GRU(64)(z, mask=mask)
+
+    feat_in = tf.keras.layers.Input(shape=(F,), name="feat")
+    f = tf.keras.layers.LayerNormalization()(feat_in)
+    f = tf.keras.layers.Dropout(0.3)(f)
+    f = tf.keras.layers.Dense(
+        128, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(f)
+    f = tf.keras.layers.Dropout(0.5)(f)
+    f = tf.keras.layers.Dense(
+        64, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(f)
+
+
+    h = tf.keras.layers.Concatenate()([z, f])
+    h = tf.keras.layers.Dense(
+        128, kernel_initializer=init,
+        kernel_regularizer=tf.keras.regularizers.l2(wd),
+        activation="leaky_relu"
+    )(h)
+    h = tf.keras.layers.Dropout(0.3)(h)
+    outputs = tf.keras.layers.Dense(5, activation="softmax")(h)
+
+    model = tf.keras.Model(inputs=[ts_inputs, feat_in, wlen_in], outputs=outputs)
 
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
     model.compile(

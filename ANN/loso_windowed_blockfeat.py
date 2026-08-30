@@ -49,11 +49,12 @@ def block_to_windows_postpad(x_ts: np.ndarray, T: int, stride: int):
     wins = []
     for start in range(0, L - T + 1, stride):
         wins.append(x_ts[start:start + T, :])
+        last_added = start
 
     # force last window to not "miss" the end
     last_start = L - T
-    if (last_start % stride) != 0:
-        wins.append(x_ts[last_start:last_start + T, :])
+    if last_added != last_start:
+        wins.append(x_ts[last_start:last_start + T])
 
     return wins
 
@@ -61,6 +62,29 @@ def block_to_windows_postpad(x_ts: np.ndarray, T: int, stride: int):
 # ----------------------------
 # 2) Dataset builder: windowed TS + block features replicated
 # ----------------------------
+def windows_to_fixed_tensor(windows, W_max: int, T: int):
+    """windows: list of (T,4)"""
+    wlen = len(windows)
+    if wlen > W_max:
+        windows = windows[:W_max]   # oder smarter auswählen
+        wlen = W_max
+
+    out = np.zeros((W_max, T, 4), np.float32)
+    if wlen > 0:
+        out[:wlen] = np.stack(windows, axis=0).astype(np.float32)
+
+    return out, np.int32(wlen)
+
+def compute_W_max(L_max: int, T: int, stride: int):
+    """maximale Fensterzahl für deine 'force last window'-Logik"""
+    if L_max <= T:
+        return 1
+    starts = list(range(0, L_max - T + 1, stride))
+    last_start = L_max - T
+    if starts[-1] != last_start:
+        return len(starts) + 1
+    return len(starts)
+
 def make_xy_from_meta_windowed_blockfeat(meta_df, dict_block, feat_table, T: int, stride: int):
     """
     meta_df: DataFrame with columns at least: subject_id, block_id
@@ -104,6 +128,30 @@ def make_xy_from_meta_windowed_blockfeat(meta_df, dict_block, feat_table, T: int
 
     return X_ts, X_feat, y, subjects, block_ids
 
+def gen_meta_windowed_blocks(meta_df, dict_block, feat_table, T: int, stride: int, W_max: int):
+    bids = meta_df["block_id"].to_numpy()
+    subjs = meta_df["subject_id"].to_numpy()
+
+    for bid, subj in zip(bids, subjs):
+        bid_i = int(bid)
+        x_ts, y = dict_block[bid_i]
+        x_ts = np.asarray(x_ts, dtype=np.float32)
+
+        fb = feat_table.iloc[bid_i, 6:]              # block-globale Features
+        x_feat = np.asarray(fb, dtype=np.float32)
+
+        windows = block_to_windows_postpad(x_ts, T=T, stride=stride)
+        ts_win, wlen = windows_to_fixed_tensor(windows, W_max=W_max, T=T)
+
+        # Output: (inputs_dict, label) – optional kannst du subj/bid extra ausgeben
+        yield (
+            {
+                "ts": ts_win,                        # (W_max, T, 4)
+                "feat": x_feat,                      # (F,)
+                "wlen": wlen,                        # scalar
+            },
+            np.int32(y)
+        )
 
 # ----------------------------
 # 3) Mean-Softmax aggregation per block (offline button use-case)
@@ -175,7 +223,7 @@ def estimate_fold_window_counts(meta_df, dict_block, T: int, stride: int):
 # ----------------------------
 def run_loso_windowed(
     meta, dict_block, tsfel_feature_fn, build_model_fn,
-    T=500, stride=500,
+    T=500, stride=500, L_max = 2000,
     epochs=120, batch_size=32, verbose=0, seed=42,
     patience=10
 ):
@@ -191,6 +239,7 @@ def run_loso_windowed(
     logo = LeaveOneGroupOut()
 
     fold_metrics = []
+    W_max = compute_W_max(L_max, T, stride)
 
     for fold, (train_idx, val_idx) in enumerate(logo.split(meta, groups=groups)):
         tf.keras.backend.clear_session()
@@ -198,31 +247,38 @@ def run_loso_windowed(
         meta_tr = meta.iloc[train_idx].reset_index(drop=True)
         meta_va = meta.iloc[val_idx].reset_index(drop=True)
 
-        # optional quick estimate of windows (nice sanity check)
-        est_tr = estimate_fold_window_counts(meta_tr, dict_block, T=T, stride=stride)
-        est_va = estimate_fold_window_counts(meta_va, dict_block, T=T, stride=stride)
-        print(f"[Fold {fold:02d}] est windows: train={est_tr['total_windows_est']} (avg {est_tr['avg_windows_per_block_est']:.2f}/block), "
-              f"val={est_va['total_windows_est']} (avg {est_va['avg_windows_per_block_est']:.2f}/block)")
+        # Feature tables global
+        feat_global = tsfel_feature_fn(meta)
 
-        # Feature tables fold-specific (avoid leakage)
-        feat_tr = tsfel_feature_fn(meta_tr)
-        feat_va = tsfel_feature_fn(meta_va)
-
-        # Windowed datasets (TS windowed, features replicated)
-        Xts_tr, Xf_tr, y_tr, subj_tr, bid_tr = make_xy_from_meta_windowed_blockfeat(
-            meta_tr, dict_block, feat_tr, T=T, stride=stride
-        )
-        Xts_va, Xf_va, y_va, subj_va, bid_va = make_xy_from_meta_windowed_blockfeat(
-            meta_va, dict_block, feat_va, T=T, stride=stride
-        )
+        feat_cols = feat_global.columns[6:]
+        Xf_tr = feat_global.loc[meta_tr["block_id"].astype(int), feat_cols].to_numpy()
 
         # Scale features (fit only on training windows)
         scaler = StandardScaler()
-        Xf_tr = scaler.fit_transform(Xf_tr).astype(np.float32)
-        Xf_va = scaler.transform(Xf_va).astype(np.float32)
+        Xf_tr = scaler.fit(Xf_tr)
 
+        X_all = feat_global.loc[:, feat_cols].to_numpy(np.float32)
+        X_all_scaled = scaler.transform(X_all)
+        feat_table_scaled = feat_global.copy()
+        feat_table_scaled.loc[:, feat_cols] = X_all_scaled
+
+        output_signature = (
+            {
+                "ts": tf.TensorSpec(shape=(W_max, T, 4), dtype=tf.float32),
+                "feat": tf.TensorSpec(shape=(Xf_tr.shape[1],), dtype=tf.float32),
+                "wlen": tf.TensorSpec(shape=(), dtype=tf.int32),
+            },
+            tf.TensorSpec(shape=(), dtype=tf.int32)  # sparse label
+        )
+
+        ds_tr = tf.data.Dataset.from_generator(
+            lambda: gen_meta_windowed_blocks(meta_tr, dict_block, feat_table_scaled, T, stride, W_max),
+            output_signature=output_signature
+        )
+
+        ds_tr = ds_tr.shuffle(2048).batch(32).prefetch(tf.data.AUTOTUNE)
         # Build model with fixed T
-        model = build_model_fn(F=Xf_tr.shape[1])
+        model = build_model_fn(W=W_max,T=T,F=Xf_tr.shape[1])
 
         es = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss", patience=patience, restore_best_weights=True
@@ -231,8 +287,8 @@ def run_loso_windowed(
             monitor="val_loss", factor=0.5, patience=max(2, patience // 2), min_lr=1e-6
         )
 
-        hist = model.fit( Xf_tr, y_tr,
-            validation_data=(Xf_va, y_va),
+        hist = model.fit(ds_tr,
+            validation_data=({"ts": Xts_va, "feat": Xf_va}, y_va),
             epochs=epochs,
             batch_size=batch_size,
             callbacks=[es, rlr],
@@ -243,7 +299,7 @@ def run_loso_windowed(
         Nva_shape = Xf_va.shape
         zero_ts = np.zeros(Nva_shape, dtype=np.float32)
         """
-        prob_win = model.predict(Xf_va, verbose=0)  # (Nwin, C)
+        prob_win = model.predict({"ts": Xts_va, "feat": Xf_va}, verbose=0)  # (Nwin, C)
 
         # Aggregate to block-level
         uniq_bids, prob_block, y_pred_block = aggregate_mean_softmax(prob_win, bid_va)
@@ -295,7 +351,7 @@ def summarize_results(df_runs: pd.DataFrame):
 
 def run_window_grid_loso(
     meta, dict_block, tsfel_feature_fn, build_model_fn,
-    grid,
+    grid, L_max=2000,
     epochs=120, batch_size=32, verbose=0, seed=42, patience=10
 ):
     all_runs = []
@@ -305,6 +361,7 @@ def run_window_grid_loso(
             meta, dict_block,
             tsfel_feature_fn=tsfel_feature_fn,
             build_model_fn=build_model_fn,
+            L_max=L_max,
             T=T, stride=stride,
             epochs=epochs, batch_size=batch_size, verbose=verbose,
             seed=seed, patience=patience

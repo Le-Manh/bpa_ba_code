@@ -35,8 +35,9 @@ meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
 df_folds_all, df_summary = run_window_grid_loso(
     meta_blocks, dict_blocks,
     tsfel_feature_fn=tsfel_feature,
-    build_model_fn=build_model_feat,
-    grid=grid2_compute,
+    build_model_fn=build_model,
+    grid=[(2000,2000)],
+    L_max = 2000, # maximale Window Länge
     epochs=200,
     batch_size=32,
     patience=10,
