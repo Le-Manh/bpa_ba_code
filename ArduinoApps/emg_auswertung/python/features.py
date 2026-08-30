@@ -39,11 +39,12 @@ def block_to_windows_postpad(x_ts: np.ndarray, T: int, stride: int):
     wins = []
     for start in range(0, L - T + 1, stride):
         wins.append(x_ts[start:start + T, :])
+        last_added = start
 
     # force last window to not "miss" the end
     last_start = L - T
-    if (last_start % stride) != 0:
-        wins.append(x_ts[last_start:last_start + T, :])
+    if last_added != last_start:
+        wins.append(x_ts[last_start:last_start + T])
 
     return wins
 
