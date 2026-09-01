@@ -4,13 +4,14 @@ from sklearn.model_selection import ParameterGrid
 
 PARAM_GRID = ParameterGrid({
     "trim":    [0],
-    "min_len": [500],
-    "win":     [500],
-    "step":    [500],
+    "min_len": [0],
+    "win":     [0],
+    "step":    [50],
 })
 def valid_data_params(p: dict) -> bool:
-    # Schrittweite sollte nicht größer als Fenster sein
-    if p["step"] > p["win"]:
+    # Schrittweite sollte nicht größer als Fenster sein und Fenster sollte nicht 0 sein.
+    # Wenn das Fenster 0 ist, wird die gesamte Sequenz genommen
+    if p["step"] > p["win"] != 0:
         return False
     # sinnvoll: min_len muss mindestens ein Fenster nach trim erlauben
     # (hier eher konservativ)
@@ -88,7 +89,7 @@ FEATURE_SET_LIBRARY = {
     #"freq_only": {"time": [], "freq": FEATURE_SETS["freq"]},
     #"time+freq": {"time": FEATURE_SETS["time"], "freq": FEATURE_SETS["freq"]}, # in the first run wa sthis the best
     "default_tsfel" : {},
-    #"tsfel" : {}
+    "tsfel" : {}
 }
 
 @dataclass(frozen=True)

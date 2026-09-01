@@ -19,7 +19,7 @@ def main():
     meta = pd.read_csv("meta.csv")
 
     # choose to use LDA or PCA
-    str_dim_red = "LDA"
+    str_dim_red = "PCA"
     str_hand = "r"          # choose the hand
 
     cfg = DataConfig(
@@ -27,7 +27,7 @@ def main():
         min_len=0,
         win=0,
         step=50,
-        feature_set_name="default_tsfel", # allowed are default_tsfel, tsfel, time, freq or time+freq
+        feature_set_name="tsfel", # allowed are default_tsfel, tsfel, time, freq or time+freq
         time_feature_names=(
             "rms","wl","p","min","max","mean","std","var","mav","peak","ptp",
             "crest","skew","kurtosis"

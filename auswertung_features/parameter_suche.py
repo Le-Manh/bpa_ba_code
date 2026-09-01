@@ -1,3 +1,4 @@
+#parameter_suche.py
 from __future__ import annotations
 
 from collections import Counter, deque # Counter is a hashable dict and deque a "faster list" at least for my usecase
@@ -259,7 +260,7 @@ def main():
         classes=(0, 1, 2, 3, 4),
         topN=5,
         n_jobs=-1,
-        K_candidates=(1, 3, 5, 7, 9, 11, 13, 15, 17, 19),
+        K_candidates=(1,),
         plot_per_outer_fold=True,
     )
     df_nested.to_csv("results/sliding/results_sliding.csv", index=False)
