@@ -8,13 +8,13 @@ model = None
 in_details = None
 out_details = None
 
-CHECK_MODEL_DETAILS =  False
+CHECK_MODEL_DETAILS =  True
 
 def load_model():
     global scaler, model, in_details, out_details
 
-    scaler =  pickle.load(open("python/models/scaler_features.pkl", "rb"))
-    model = Interpreter(model_path="python/models/EMG-CNN.tflite")
+    scaler =  pickle.load(open("python/models/scaler_features_debug.pkl", "rb"))
+    model = Interpreter(model_path="python/models/EMG-CNN-debug.tflite")
     model.allocate_tensors()
 
     in_details = model.get_input_details()
@@ -33,13 +33,13 @@ def load_model():
 def get_prediction_windows(X_ts_N: np.ndarray, df_feat: pd.DataFrame) -> np.ndarray:
     global scaler, model, in_details, out_details
 
-    N = X_ts_N.shape[0] # X_ts is (N, 500, 4) --> N is bc of the stack of 
+    N = X_ts_N.shape[0] # X_ts is (N, 500, 4) --> N is bc of the stack of # TODO may be outdated
 
     # Features: 1x624 (für alle Fenster gleich)
-    X_feat = np.asarray(df_feat, dtype=np.float32)          # shape (1,624) oder (624,)
-    if X_feat.ndim == 1:
-        X_feat = X_feat[None, :]
-    X_feat = scaler.transform(X_feat).astype(np.float32)    # (1,624)
+    #X_feat = np.asarray(df_feat, dtype=np.float32)          # shape (1,624) oder (624,)
+    #if X_feat.ndim == 1:
+    #    X_feat = X_feat[None, :]
+    X_feat = scaler.transform(df_feat).astype(np.float32)    # (1,624)
 
     probs = np.zeros((N, 5), dtype=np.float32)
 

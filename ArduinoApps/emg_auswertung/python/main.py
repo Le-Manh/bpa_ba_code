@@ -25,7 +25,7 @@ def start_stop_recording():
         Leds.set_led1_color(1, 0, 0)
         df_time_data = pd.DataFrame(dict_time_data)
         df_feature = building_feature(df_time_data)
-        X_ts = block_to_win(df_time_data, T=500,stride=250) # window length 500 samples and stride 250. On these numbers were the model trained
+        X_ts = block_to_win(df_time_data, T=2000,stride=2000) # window length 500 samples and stride 250. On these numbers were the model trained
         prediction = predict_block_from_windows(X_ts, df_feature)
 
 
