@@ -145,39 +145,45 @@ def build_model(T = 1000, F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
     )
     return model
 
-def build_model_feat(F=624, wd=1e-3, initializer="he_normal", lr=1e-3):
+def build_model_feat(
+    F=624,
+    n_classes=5,
+    hidden_units=(128, 64),
+    norm="layernorm",          # "none" oder "layernorm"
+    dropout=0.0,
+    wd=1e-4,
+    initializer="he_normal",
+    lr=3e-4,
+    leaky_alpha=0.1
+):
     init = tf.keras.initializers.get(initializer)
 
-    feat_in = tf.keras.layers.Input(shape=(F,), name="feat")
-    f = tf.keras.layers.LayerNormalization()(feat_in)
-    f = tf.keras.layers.Dropout(0.3)(f)
-    f = tf.keras.layers.Dense(
-        128, kernel_initializer=init,
-        kernel_regularizer=tf.keras.regularizers.l2(wd),
-        activation="leaky_relu"
-    )(f)
-    f = tf.keras.layers.Dropout(0.5)(f)
-    f = tf.keras.layers.Dense(
-        64, kernel_initializer=init,
-        kernel_regularizer=tf.keras.regularizers.l2(wd),
-        activation="leaky_relu"
-    )(f)
+    x_in = tf.keras.layers.Input(shape=(F,), name="feat")
+    x = x_in
+    if norm == "layernorm":
+        x = tf.keras.layers.LayerNormalization()(x)
 
-    h = tf.keras.layers.Dense(
-        128, kernel_initializer=init,
-        kernel_regularizer=tf.keras.regularizers.l2(wd),
-        activation="leaky_relu"
-    )(f)
-    h = tf.keras.layers.Dropout(0.3)(h)
-    outputs = tf.keras.layers.Dense(5, activation="softmax")(h)
+    for units in hidden_units:
+        x = tf.keras.layers.Dense(
+            units,
+            activation=None,
+            kernel_initializer=init,
+            kernel_regularizer=tf.keras.regularizers.l2(wd) if wd and wd > 0 else None,
+        )(x)
+        x = tf.keras.layers.LeakyReLU(negative_slope=leaky_alpha)(x)
+        if dropout and dropout > 0:
+            x = tf.keras.layers.Dropout(dropout)(x)
 
-    model = tf.keras.Model(inputs=feat_in, outputs=outputs)
+    out = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
 
-    loss = tf.keras.losses.SparseCategoricalCrossentropy()
+    model = tf.keras.Model(inputs=x_in, outputs=out)
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(lr),
-        loss=loss,
-        metrics=["accuracy", tf.keras.metrics.SparseCategoricalCrossentropy(name="ce")]
+        optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+        metrics=[
+            "accuracy",
+            tf.keras.metrics.SparseCategoricalCrossentropy(name="ce"),
+        ],
     )
     return model
 
