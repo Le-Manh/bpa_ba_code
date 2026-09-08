@@ -1,0 +1,2 @@
+,file,n,acc_mean,acc_sd,macro_f1_mean,macro_f1_sd,bal_acc_mean,bal_acc_sd
+0,results_logo_mlp_ohne_norm_default_tsfel.csv,22,0.9634848484848484,0.08480589273181105,0.9637248520158341,0.08339798837646094,0.9634848484848484,0.08480589273181105
