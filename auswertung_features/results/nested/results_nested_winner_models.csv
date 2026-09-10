@@ -1,9 +1,0 @@
-hand,best_model,n
-l,"ModelConfig(model_name='linear-svm', model_type='supervised', params=(('C', 0.01),))",2
-l,"ModelConfig(model_name='linear-svm', model_type='supervised', params=(('C', 0.1),))",1
-l,"ModelConfig(model_name='lda', model_type='supervised', params=())",1
-l,"ModelConfig(model_name='log-reg', model_type='supervised', params=(('C', 1.0), ('max_iter', 2000)))",1
-r,"ModelConfig(model_name='mlp', model_type='ann', params=(('alpha', 0.0001), ('hidden_layer_sizes', (50,))))",2
-r,"ModelConfig(model_name='mlp', model_type='ann', params=(('alpha', 0.0001), ('hidden_layer_sizes', (100,))))",1
-r,"ModelConfig(model_name='linear-svm', model_type='supervised', params=(('C', 0.1),))",1
-r,"ModelConfig(model_name='lda', model_type='supervised', params=())",1
