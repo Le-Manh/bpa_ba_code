@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
+
+from ANN.debug import scaler
 from loso_windowed_blockfeat import block_to_windows_postpad
 import tsfel
 import os
@@ -54,7 +56,7 @@ def tsfel_feature_read(dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel
             feature_cache[k].to_csv(f"../auswertung_features/cache/feature_{k}.csv")
     return feature_cache[k]
 
-def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel", b_CNN = False, b_pad = True):
+def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel", b_pad = True, standardscaler="yes"):
     logo = LeaveOneGroupOut()
     groups = meta_block["subject_id"].to_numpy()
     fold_metrics = []
@@ -63,51 +65,47 @@ def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "defa
     for fold, (train_idx, val_idx) in enumerate(logo.split(meta_block, groups=groups)):
         y_list_tr = []
         y_list_va = []
-        xts_list_tr = []
-        xts_list_va = []
+        X_tr_list = []
+        X_va_list = []
         meta_tr = meta_block.iloc[train_idx].reset_index(drop=True)
         meta_va = meta_block.iloc[val_idx].reset_index(drop=True)
 
         #Xf_va = feat_global.loc[meta_va["block_id"].astype(int), feat_cols].to_numpy()
+        X_all = feat_global
         for i, bid in enumerate(meta_tr["block_id"].to_numpy()):
             x_tr_raw, y_i = dict_blocks[int(bid)]
             y_list_tr.append(int(y_i))
+            X_tr_list.append(X_all.iloc[int(bid)].reset_index(drop=True).to_numpy(np.float32))
             #random.shuffle(y_list_tr) # used to test label leakage
-            xts_list_tr.append(block_to_windows_postpad(x_tr_raw, T = 2000, stride=2000)[0])
 
         for i, bid in enumerate(meta_va["block_id"].to_numpy()):
             x_va_raw, y_i = dict_blocks[int(bid)]
             y_list_va.append(int(y_i))
+            X_va_list.append(X_all.iloc[int(bid)].reset_index(drop=True).to_numpy(np.float32))
             #random.shuffle(y_list_va)
-            xts_list_va.append(block_to_windows_postpad(x_va_raw, T = 2000, stride=2000)[0])
+
+        X_tr = np.array(X_tr_list)
+        X_va = np.array(X_va_list)
 
         y_tr = np.array(y_list_tr, dtype=np.int32)
         y_va = np.array(y_list_va, dtype=np.int32)
 
-        X_all = feat_global
-        X_tr = X_all.iloc[train_idx].reset_index(drop=True).to_numpy(np.float32)
-        X_va = X_all.iloc[val_idx].reset_index(drop=True).to_numpy(np.float32)
-
-        scaler = StandardScaler()
-        #X_tr = scaler.fit_transform(X_tr)
-        #X_va = scaler.transform(X_va)
+        if standardscaler == "yes":
+            scaler = StandardScaler()
+            X_tr = scaler.fit_transform(X_tr)
+            X_va = scaler.transform(X_va)
 
         es = tf.keras.callbacks.EarlyStopping(
-            monitor="loss", patience=10, restore_best_weights=True
+            monitor="val_loss", patience=10, restore_best_weights=True
         )
         rlr = tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="loss", factor=0.5, patience=max(2, 10 // 2), min_lr=1e-6
+            monitor="val_loss", factor=0.5, patience=max(2, 10 // 2), min_lr=1e-6
         )
-        if b_CNN:
-            xts_tr = np.stack(xts_list_tr, axis=0).astype(np.float32)
-            xts_va = np.stack(xts_list_va, axis=0).astype(np.float32)
-            hist = model.fit({"ts":xts_tr, "feat":X_tr}, y_tr, batch_size=32, epochs=200, callbacks=[es, rlr], shuffle=True)
-            y_prob = model.predict({"ts":xts_va, "feat":X_va})
-        else:
-            hist = model.fit(X_tr, y_tr,
-                         validation_data=(X_va, y_va), callbacks=[es, rlr],
-                         epochs = 200, shuffle = True, batch_size=32)
-            y_prob = model.predict(X_va)
+
+        hist = model.fit(X_tr, y_tr,
+            validation_data=(X_va, y_va), callbacks=[es, rlr],
+                epochs = 200, shuffle = True, batch_size=32)
+        y_prob = model.predict(X_va)
 
         y_pred = y_prob.argmax(axis=1)
 
@@ -124,7 +122,7 @@ def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "defa
             "fold": fold,
             "left_out_subject": subject_left_out,
             "n_val_blocks": int(len(meta_va)),
-            "best_epoch": int(np.argmin(hist.history["loss"]) + 1) if "loss" in hist.history else None,
+            "best_epoch": int(np.argmin(hist.history["val_loss"]) + 1) if "loss" in hist.history else None,
             "n_val": len(y_va),
             "val_acc": float(acc),
             "val_macro_f1": float(f1m),
@@ -133,7 +131,7 @@ def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "defa
 
     return fold_metrics
 
-feature_set = "tsfel"
+feature_set = "default_tsfel"
 
 if feature_set == "default_tsfel":
     tsfel_cfg = tsfel.get_features_by_domain()
@@ -153,21 +151,23 @@ dropout_list = [0.0]
 learning_rate_list = [3e-4]
 norms = ["layernorm"]
 hand_list = ["both","r","l"]
+scaler_list = ["yes","no"]
 
-for hidden_unit in hidden_units_list:
-    for wd in wd_list:
-        for dropout in dropout_list:
-            for learning_rate in learning_rate_list:
-                for norm in norms:
-                    tf_model = build_model_feat(F, hidden_units=hidden_unit, wd=wd, lr=learning_rate, norm=norm, dropout=dropout)
-                    for hand in hand_list:
-                        if hand == "r":
-                            data = meta_blocks_r
-                        elif hand == "l":
-                            data = meta_blocks_l
-                        else:
-                            data = meta_blocks
-                        results_mlp = logo_mlp(tf_model, data, dict_blocks, feature_set_name = feature_set,tsfel_cfg = tsfel_cfg, b_pad = False)
-                        path = "../auswertung_features/results/mlp-logo/"
-                        filename = f"results_logo_mlp_{feature_set}_hu-{hidden_unit}_wd-{wd}_drop-{dropout}_lr-{learning_rate}_norm-{norm}_scaler-no_{hand}.csv"
-                        pd.DataFrame(results_mlp).to_csv(path+filename)
+for scaler in scaler_list:
+    for hidden_unit in hidden_units_list:
+        for wd in wd_list:
+            for dropout in dropout_list:
+                for learning_rate in learning_rate_list:
+                    for norm in norms:
+                        tf_model = build_model_feat(F, hidden_units=hidden_unit, wd=wd, lr=learning_rate, norm=norm, dropout=dropout)
+                        for hand in hand_list:
+                            if hand == "r":
+                                data = meta_blocks_r
+                            elif hand == "l":
+                                data = meta_blocks_l
+                            else:
+                                data = meta_blocks
+                            results_mlp = logo_mlp(tf_model, data, dict_blocks, feature_set_name = feature_set,tsfel_cfg = tsfel_cfg, b_pad = False, standardscaler=scaler)
+                            path = "../auswertung_features/results/mlp-logo/"
+                            filename = f"results_logo_mlp_{feature_set}_hu-{hidden_unit}_wd-{wd}_drop-{dropout}_lr-{learning_rate}_norm-{norm}_scaler-{scaler}_{hand}.csv"
+                            pd.DataFrame(results_mlp).to_csv(path+filename)
