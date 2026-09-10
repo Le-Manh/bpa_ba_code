@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 
-from ANN.debug import scaler
 from loso_windowed_blockfeat import block_to_windows_postpad
 import tsfel
 import os
@@ -13,29 +12,8 @@ from sklearn.preprocessing import StandardScaler
 import random
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
-meta = pd.read_csv("../auswertung_features/meta.csv")
-dict_blocks = {}
-meta_blocks = {"subject_id":[], "hand": [], "rel_path":[], "block_id":[]}
-for i, r in meta.iterrows():
-    csv_path = r["rel_path"]
-    df_session = load_session(csv_path)
-
-    #Error Handling für leere dfs
-    if df_session is None:
-        continue
-
-    blocks = split_into_label_blocks(df_session)
-    for block in blocks:
-        meta_blocks["subject_id"].append(r["subject_id"])
-        meta_blocks["hand"].append(r["hand"])
-        meta_blocks["rel_path"].append(r["rel_path"])
-        meta_blocks["block_id"].append(len(dict_blocks))
-        dict_blocks[len(dict_blocks)] = block
-meta_blocks = pd.DataFrame(meta_blocks)
-meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
-meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
-
 feature_cache: dict[str, pd.DataFrame] = {}
+
 def tsfel_feature_read(dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel", fs = 500, b_pad = True):
     k = feature_set_name
     if b_pad:
@@ -131,43 +109,68 @@ def logo_mlp(model, meta_block, dict_blocks, tsfel_cfg, feature_set_name = "defa
 
     return fold_metrics
 
-feature_set = "default_tsfel"
 
-if feature_set == "default_tsfel":
-    tsfel_cfg = tsfel.get_features_by_domain()
-    F = 624
-elif feature_set == "tsfel_wOut_time":
-    tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf_without_TimeVar.json")
-    F = 352
-else:
-    tsfel_cfg = tsfel.get_features_by_domain(json_path="../auswertung_features/tsfel_conf.json")
-    F = 260
+
+def main():
+    meta = pd.read_csv("../auswertung_features/meta.csv")
+    dict_blocks = {}
+    meta_blocks = {"subject_id":[], "hand": [], "rel_path":[], "block_id":[]}
+    for i, r in meta.iterrows():
+        csv_path = r["rel_path"]
+        df_session = load_session(csv_path)
+
+        #Error Handling für leere dfs
+        if df_session is None:
+            continue
+
+        blocks = split_into_label_blocks(df_session)
+        for block in blocks:
+            meta_blocks["subject_id"].append(r["subject_id"])
+            meta_blocks["hand"].append(r["hand"])
+            meta_blocks["rel_path"].append(r["rel_path"])
+            meta_blocks["block_id"].append(len(dict_blocks))
+            dict_blocks[len(dict_blocks)] = block
+    meta_blocks = pd.DataFrame(meta_blocks)
+    meta_blocks_r = meta_blocks[meta_blocks["hand"]=="r"].reset_index(drop=True)
+    meta_blocks_l = meta_blocks[meta_blocks["hand"]=="l"].reset_index(drop=True)
+
+    feature_set = "default_tsfel"
+
+    if feature_set == "default_tsfel":
+        tsfel_cfg = tsfel.get_features_by_domain()
+        F = 624
+    elif feature_set == "tsfel_wOut_time":
+        tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf_without_TimeVar.json")
+        F = 352
+    else:
+        tsfel_cfg = tsfel.get_features_by_domain(json_path="../auswertung_features/tsfel_conf.json")
+        F = 260
 #tf_model = build_model(2000,F)
 #results_mlp = logo_mlp(tf_model, meta_blocks ,dict_blocks, feature_set_name = feature_set, tsfel_cfg = tsfel_cfg, b_CNN=True)
 
-hidden_units_list = [(64,) ]
-wd_list = [1e-4]
-dropout_list = [0.0]
-learning_rate_list = [3e-4]
-norms = ["layernorm"]
-hand_list = ["both","r","l"]
-scaler_list = ["yes","no"]
+    hidden_units_list = [(64,) ]
+    wd_list = [1e-4]
+    dropout_list = [0.0]
+    learning_rate_list = [3e-4]
+    norms = ["layernorm"]
+    hand_list = ["both","r","l"]
+    scaler_list = ["yes","no"]
 
-for scaler in scaler_list:
-    for hidden_unit in hidden_units_list:
-        for wd in wd_list:
-            for dropout in dropout_list:
-                for learning_rate in learning_rate_list:
-                    for norm in norms:
-                        tf_model = build_model_feat(F, hidden_units=hidden_unit, wd=wd, lr=learning_rate, norm=norm, dropout=dropout)
-                        for hand in hand_list:
-                            if hand == "r":
-                                data = meta_blocks_r
-                            elif hand == "l":
-                                data = meta_blocks_l
-                            else:
-                                data = meta_blocks
-                            results_mlp = logo_mlp(tf_model, data, dict_blocks, feature_set_name = feature_set,tsfel_cfg = tsfel_cfg, b_pad = False, standardscaler=scaler)
-                            path = "../auswertung_features/results/mlp-logo/"
-                            filename = f"results_logo_mlp_{feature_set}_hu-{hidden_unit}_wd-{wd}_drop-{dropout}_lr-{learning_rate}_norm-{norm}_scaler-{scaler}_{hand}.csv"
-                            pd.DataFrame(results_mlp).to_csv(path+filename)
+    for scaler in scaler_list:
+        for hidden_unit in hidden_units_list:
+            for wd in wd_list:
+                for dropout in dropout_list:
+                    for learning_rate in learning_rate_list:
+                        for norm in norms:
+                            tf_model = build_model_feat(F, hidden_units=hidden_unit, wd=wd, lr=learning_rate, norm=norm, dropout=dropout)
+                            for hand in hand_list:
+                                if hand == "r":
+                                    data = meta_blocks_r
+                                elif hand == "l":
+                                        data = meta_blocks_l
+                                else:
+                                    data = meta_blocks
+                                results_mlp = logo_mlp(tf_model, data, dict_blocks, feature_set_name = feature_set,tsfel_cfg = tsfel_cfg, b_pad = False, standardscaler=scaler)
+                                path = "../auswertung_features/results/mlp-logo/"
+                                filename = f"results_logo_mlp_{feature_set}_hu-{hidden_unit}_wd-{wd}_drop-{dropout}_lr-{learning_rate}_norm-{norm}_scaler-{scaler}_{hand}.csv"
+                                pd.DataFrame(results_mlp).to_csv(path+filename)
