@@ -30,31 +30,26 @@ def load_model():
             print("output", i, "shape", d["shape"], "dtype", d["dtype"], "index", d["index"])
    
 
-def get_prediction_windows(X_ts_N: np.ndarray, df_feat: pd.DataFrame) -> np.ndarray:
+def get_prediction(df_feat: pd.DataFrame) -> np.ndarray:
     global scaler, model, in_details, out_details
-
-    N = X_ts_N.shape[0] # X_ts is (N, 500, 4) --> N is bc of the stack of # TODO may be outdated
 
     # Features: 1x624 (für alle Fenster gleich)
     #X_feat = np.asarray(df_feat, dtype=np.float32)          # shape (1,624) oder (624,)
     #if X_feat.ndim == 1:
     #    X_feat = X_feat[None, :]
-    X_feat = scaler.transform(df_feat).astype(np.float32)    # (1,624)
+    X_feat = scaler.transform(df_feat.to_numpy()).astype(np.float32)    # (1,624)
 
-    probs = np.zeros((N, 5), dtype=np.float32)
+    x_ts = X_ts_N[i:i+1, :, :].astype(np.float32)       # (1,500,4)
 
-    for i in range(N):
-        x_ts = X_ts_N[i:i+1, :, :].astype(np.float32)       # (1,500,4)
+    model.set_tensor(in_details[0]["index"], X_feat)    # (1,624)
+    model.invoke()
 
-        model.set_tensor(in_details[0]["index"], X_feat)    # (1,624)
-        model.set_tensor(in_details[1]["index"], x_ts)      # (1,500,4)
-        model.invoke()
-
-        probs[i] = model.get_tensor(out_details[0]["index"])[0]  # (5,)
-
+    probs = model.get_tensor(out_details[0]["index"])  # (5,)
+    print(probs)
     return probs
 
-def predict_block_from_windows(X_ts_N, df_feat):
-    probs = get_prediction_windows(X_ts_N, df_feat)   # (N,5)
-    prob_block = probs.mean(axis=0)                   # (5,)
-    return int(np.argmax(prob_block))
+def predict_block(df_feat):
+    probs = get_prediction(df_feat)   # (N,5)
+    print(np.argmax(probs, axis=1))
+    print(np.argmax(probs, axis=1)[0])
+    return int(np.argmax(probs, axis=1)[0])
