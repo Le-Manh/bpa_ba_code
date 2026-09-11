@@ -13,8 +13,8 @@ CHECK_MODEL_DETAILS =  True
 def load_model():
     global scaler, model, in_details, out_details
 
-    scaler =  pickle.load(open("python/models/scaler_features_debug.pkl", "rb"))
-    model = Interpreter(model_path="python/models/EMG-CNN-debug.tflite")
+    scaler =  pickle.load(open("python/models/scaler_features_l.pkl", "rb"))
+    model = Interpreter(model_path="python/models/EMG-MLP-l.tflite")
     model.allocate_tensors()
 
     in_details = model.get_input_details()
@@ -38,8 +38,6 @@ def get_prediction(df_feat: pd.DataFrame) -> np.ndarray:
     #if X_feat.ndim == 1:
     #    X_feat = X_feat[None, :]
     X_feat = scaler.transform(df_feat.to_numpy()).astype(np.float32)    # (1,624)
-
-    x_ts = X_ts_N[i:i+1, :, :].astype(np.float32)       # (1,500,4)
 
     model.set_tensor(in_details[0]["index"], X_feat)    # (1,624)
     model.invoke()
