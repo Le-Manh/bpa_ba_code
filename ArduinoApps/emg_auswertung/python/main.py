@@ -5,7 +5,7 @@ import numpy as np
 
 from features import building_feature, block_to_win
 from messung import parse_emg_frame, DATA_DEBUG
-from model import load_model, predict_block_from_windows
+from model import load_model, predict_block
 
 
 TIMING_DEBUG = False # used to measure the time to get one frame
@@ -24,9 +24,15 @@ def start_stop_recording():
     else:
         Leds.set_led1_color(1, 0, 0)
         df_time_data = pd.DataFrame(dict_time_data)
+        start = time.time()
         df_feature = building_feature(df_time_data)
-        X_ts = block_to_win(df_time_data, T=2000,stride=2000) # window length 500 samples and stride 250. On these numbers were the model trained
-        prediction = predict_block_from_windows(X_ts, df_feature)
+        end = time.time()
+        print("Feature building needed: ", end-start, "s")
+        #X_ts = block_to_win(df_time_data, T=2000,stride=2000) # window length 500 samples and stride 250. On these numbers were the model trained
+        start = time.time()
+        prediction = predict_block(df_feature)
+        end = time.time()
+        print("Interferenz needed: ", end-start, "s")
 
 
 def user_loop():
