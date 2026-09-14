@@ -1,0 +1,6 @@
+Unnamed: 0,file,Hidden Units,Regularization l2,Dropout,Learning Rate,UsedNormalizationlayer,UsedStandardscaler,Feature Set,Hand,n,AccuracyMean,AccuracyStd,MacroF1Mean,MacroF1Std,BalancedAccuracyMean,BalancedAccuracyStd
+399,"results_logo_mlp_default_tsfel_hu-(128, 64)_wd-0_drop-0.3_lr-0.001_norm-layernorm_scaler-yes_both.csv","(128, 64)",0.0,0.3,0.001,yes,yes,default_tsfel,both,22,0.888,0.101,0.887,0.103,0.888,0.101
+363,"results_logo_mlp_default_tsfel_hu-(128, 64)_wd-0_drop-0.0_lr-0.0001_norm-layernorm_scaler-yes_both.csv","(128, 64)",0.0,0.0,0.0001,yes,yes,default_tsfel,both,22,0.875,0.106,0.875,0.107,0.875,0.106
+405,"results_logo_mlp_default_tsfel_hu-(128, 64)_wd-0_drop-0.3_lr-0.001_norm-none_scaler-yes_both.csv","(128, 64)",0.0,0.3,0.001,no,yes,default_tsfel,both,22,0.872,0.119,0.87,0.123,0.872,0.119
+333,"results_logo_mlp_default_tsfel_hu-(128, 64)_wd-0.001_drop-0.3_lr-0.001_norm-none_scaler-yes_both.csv","(128, 64)",0.001,0.3,0.001,no,yes,default_tsfel,both,22,0.868,0.101,0.866,0.102,0.868,0.101
+621,"results_logo_mlp_default_tsfel_hu-(64,)_wd-0_drop-0.3_lr-0.001_norm-none_scaler-yes_both.csv","(64,)",0.0,0.3,0.001,no,yes,default_tsfel,both,22,0.864,0.096,0.862,0.098,0.864,0.096
