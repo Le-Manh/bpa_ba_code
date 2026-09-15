@@ -90,7 +90,7 @@ volatile bool start_stop_mpu = false;
 volatile uint32_t last_mess_btn_us = 0;
 volatile uint32_t last_hand_btn_us = 0;
 
-const uint32_t DEBOUNCE_US = 100000; // 100 ms
+const uint32_t DEBOUNCE_US = 200000; // 200 ms
 
 //Interrupt (ISR)
 void button_interrupt_messung()
