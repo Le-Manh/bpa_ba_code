@@ -8,12 +8,12 @@ model = None
 in_details = None
 out_details = None
 
-CHECK_MODEL_DETAILS =  True
+CHECK_MODEL_DETAILS =  False
 
 def load_model():
     global scaler, model, in_details, out_details
 
-    scaler =  pickle.load(open("python/models/scaler_default_features_tsfel_r.pkl", "rb"))
+    scaler =  pickle.load(open("python/models/scaler_features_default_tsfel_r.pkl", "rb"))
     model = Interpreter(model_path="python/models/EMG-MLP-default_tsfel-r.tflite")
     model.allocate_tensors()
 
@@ -43,11 +43,10 @@ def get_prediction(df_feat: pd.DataFrame) -> np.ndarray:
     model.invoke()
 
     probs = model.get_tensor(out_details[0]["index"])  # (5,)
-    print(probs)
+    #print(probs)
     return probs
 
 def predict_block(df_feat):
     probs = get_prediction(df_feat)   # (N,5)
-    print(np.argmax(probs, axis=1))
-    print(np.argmax(probs, axis=1)[0])
+    #print(np.argmax(probs, axis=1))
     return int(np.argmax(probs, axis=1)[0])
