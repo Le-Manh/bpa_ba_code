@@ -13,8 +13,8 @@ CHECK_MODEL_DETAILS =  True
 def load_model():
     global scaler, model, in_details, out_details
 
-    scaler =  pickle.load(open("python/models/scaler_features_l.pkl", "rb"))
-    model = Interpreter(model_path="python/models/EMG-MLP-l.tflite")
+    scaler =  pickle.load(open("python/models/scaler_default_features_tsfel_r.pkl", "rb"))
+    model = Interpreter(model_path="python/models/EMG-MLP-default_tsfel-r.tflite")
     model.allocate_tensors()
 
     in_details = model.get_input_details()

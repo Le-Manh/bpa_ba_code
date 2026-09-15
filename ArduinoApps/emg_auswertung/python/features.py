@@ -2,7 +2,7 @@ import tsfel
 import pandas as pd
 import numpy as np
 
-TSFEL_CFG = tsfel.get_features_by_domain() # TSFEL_CFG is global
+TSFEL_CFG = tsfel.get_features_by_domain()#json_path="python/models/tsfel_conf.json") # TSFEL_CFG is global
 
 def building_feature(data: pd.DataFrame, fs:int = 500) -> pd.DataFrame:
     """
@@ -14,7 +14,7 @@ def building_feature(data: pd.DataFrame, fs:int = 500) -> pd.DataFrame:
     global TSFEL_CFG
     X_feat = np.asarray(data, dtype=np.float32)
     #X_feat = block_to_windows_postpad(X_feat, T=2000, stride=2000)
-    feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, X_feat, fs=fs)
+    feats_df = tsfel.time_series_features_extractor(TSFEL_CFG, X_feat, fs=fs, verbose=0)
     #feats_df.to_csv("tsfel_debug.csv")
     
     return feats_df
