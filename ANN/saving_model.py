@@ -5,8 +5,7 @@ import tensorflow as tf
 import tsfel
 import pickle # is not secure, bit supports a lot: https://scikit-learn.org/stable/model_persistence.html
 
-from ANN.loso_windowed_blockfeat import make_xy_from_meta_windowed_blockfeat, make_xy_blocks, compute_W_max
-from ANN.LOSO_Run_2_input import build_model_feat
+from ANN.build_model_mlp import build_model_feat
 from ANN.gridsearch_mlp import tsfel_feature_read
 from auswertung_features.build_features import split_into_label_blocks, load_session
 
@@ -86,7 +85,6 @@ def main():
 
     model.save(f"models/EMG-Model-{hand}.keras")
 
-    #model = tf.keras.models.load_model("models/EMG-GRU-Model.keras")
     print(model.summary())
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
 

@@ -2,10 +2,9 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 
-from loso_windowed_blockfeat import block_to_windows_postpad
 import tsfel
 import os
-from LOSO_Run_2_input import build_model_feat, build_model
+from build_model_mlp import build_model_feat
 import tensorflow as tf
 from auswertung_features.build_features import split_into_label_blocks, load_session
 from sklearn.preprocessing import StandardScaler
@@ -14,21 +13,15 @@ from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 feature_cache: dict[str, pd.DataFrame] = {}
 
-def tsfel_feature_read(dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel", fs = 500, b_pad = True):
+def tsfel_feature_read(dict_blocks, tsfel_cfg, feature_set_name = "default_tsfel", fs = 500):
     k = feature_set_name
-    if b_pad:
-        k = k + "_pad"
     feature_list = []
     if k not in feature_cache:
         if os.path.isfile(f"../auswertung_features/cache/feature_{k}.csv"):
             feature_cache[k] = pd.read_csv(f"../auswertung_features/cache/feature_{k}.csv", index_col=0)
         else:
             for win, label in dict_blocks.values():
-                if b_pad:
-                    X = block_to_windows_postpad(win, T=2000, stride=2000)
-                else:
-                    X = win
-                feats_df= tsfel.time_series_features_extractor(tsfel_cfg, X, fs=fs)
+                feats_df= tsfel.time_series_features_extractor(tsfel_cfg, win, fs=fs)
                 feature_list.append(feats_df.iloc[0].to_dict())
             feature_cache[k] = pd.DataFrame(feature_list)
             feature_cache[k].to_csv(f"../auswertung_features/cache/feature_{k}.csv")
@@ -139,14 +132,9 @@ def main():
     if feature_set == "default_tsfel":
         tsfel_cfg = tsfel.get_features_by_domain()
         F = 624
-    elif feature_set == "tsfel_wOut_time":
-        tsfel_cfg = tsfel.get_features_by_domain(json_path="tsfel_conf_without_TimeVar.json")
-        F = 352
     else:
         tsfel_cfg = tsfel.get_features_by_domain(json_path="../auswertung_features/tsfel_conf.json")
         F = 260
-#tf_model = build_model(2000,F)
-#results_mlp = logo_mlp(tf_model, meta_blocks ,dict_blocks, feature_set_name = feature_set, tsfel_cfg = tsfel_cfg, b_CNN=True)
 
     hidden_units_list = [(64,) ]
     wd_list = [1e-4]
