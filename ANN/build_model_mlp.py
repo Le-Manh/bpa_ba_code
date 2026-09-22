@@ -1,16 +1,47 @@
 import tensorflow as tf
 
 def build_model_feat(
-    F=624,
-    n_classes=5,
-    hidden_units=(128, 64),
-    norm="layernorm",          # "none" oder "layernorm"
-    dropout=0.0,
-    wd=1e-4,
-    initializer="he_normal",
-    lr=3e-4,
-    leaky_alpha=0.1
+    F: int=624,
+    n_classes: int =5,
+    hidden_units: tuple=(128, 64),
+    norm: str="layernorm",          # "none" oder "layernorm"
+    dropout: float =0.0,
+    wd: float=1e-4,
+    initializer: string="he_normal",
+    lr: float=3e-4,
+    leaky_alpha: float=0.1
 ):
+    """
+    builds the parametrized mlp model to perform a gridsearch through the parameters
+
+    Parameters
+    ----------
+    F : int, default=624
+        Number of Feature Dimension which will act as inputs for the Neural Network
+    n_classes : int, default=5
+        Number of classes which should be be returned by the network. In this case it is five but should be six to add a rest class to the finger movement
+    hidden_units : tuple of int, default=(128,64)
+        len(hidden_units) is the number of hidden layers and the int in the tuple is the count of units in the layer
+    norm : str, default=layernorm
+        Adds tf.keras.layers.LayerNormalization after the input if the value is 'layernorm' otherwise ignores it
+        To differentiate between used and not used it is noted as none or layernorm
+    dropout : float, default=0.0
+        Adds a dropout between the hidden layers and before the the output layer, if the value is different then 0
+    wd : float, default=1e-4
+        Value to give to the regularizer l2 it's factor
+    initializer : str, default='he_normal'
+        Value to initialize the weights. Supports the str identifiers of keras.initializers
+    lr: float, default=3e-4
+        Value of the Learning Rate to give Adam
+    leaky_alpha: float, default=0.1
+        value to give LeakyReLU as negative_slope which replaces the parameter which was used before alpha
+
+    Returns
+    -------
+    keras.Model
+        the compiled model with the parameter which was given to it
+
+    """
     init = tf.keras.initializers.get(initializer)
 
     x_in = tf.keras.layers.Input(shape=(F,), name="feat")
