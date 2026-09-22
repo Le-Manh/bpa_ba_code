@@ -7,7 +7,7 @@ def build_model_feat(
     norm: str="layernorm",          # "none" oder "layernorm"
     dropout: float =0.0,
     wd: float=1e-4,
-    initializer: string="he_normal",
+    initializer: str="he_normal",
     lr: float=3e-4,
     leaky_alpha: float=0.1
 ):
