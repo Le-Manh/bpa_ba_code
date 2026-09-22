@@ -39,7 +39,7 @@ def build_model_feat(
     Returns
     -------
     keras.Model
-        the compiled model with the parameter which was given to it
+        the compiled model with the given arguments
     """
     init = tf.keras.initializers.get(initializer)
 
