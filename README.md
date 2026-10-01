@@ -34,4 +34,4 @@ This folder holds every search and test of the mlp. The `debug.ipynb` was used t
 The gridsearch was run in `gridsearch_mlp.py`
 
 ## ArduinoApps
-This directory has the structure of the Apps and is build how the Arduino Uno Q expects it. `diy-ecg-uno-q` is as reference for bridge communication as a submodule in the repository. `emg_auswertung` is the recording with `sketch` for the MCU side and `python` for teh MPU side. More informationcan be found in [emg_auswertung/README.md](emg_auswertung/README.md)
+This directory has the structure of the Apps and is build how the Arduino Uno Q expects it. `diy-ecg-uno-q` is as reference for bridge communication as a submodule in the repository. `emg_auswertung` is the recording with `sketch` for the MCU side and `python` for teh MPU side. More informationcan be found in [emg_auswertung/README.md](ArduinoApps/emg_auswertung/README.md)
