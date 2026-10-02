@@ -7,9 +7,9 @@ Communication of the MCU of Arduino Uno Q and MPU was realized based on: [diy-ec
 ## data overview (recording)
 - Sensors: 4 x [DFRobot Gravity:Analog Sensors](https://wiki.dfrobot.com/sen0240/)
 - Sampling rate: 500 Hz
-- Lowpass, highpass and notch filter based on OYMotion library in `ArduinoApps/emg_messung/sketch/EMG_Filter/EMGFilters/`, used the PR of [edgar-bonet](https://github.com/oymotion/EMGFilters/pull/4) to use multiple sensors
+- Lowpass, highpass and notch filter based on OYMotion library in `ArduinoApps/emg_messung/sketch/EMG_Filter/EMGFilters/`, implemented the PR of [edgar-bonet](https://github.com/oymotion/EMGFilters/pull/4) to use multiple sensors
 - ADC resolution: 14-Bit
-- Sensor Placement see: ´sensor_placement/´
+- Sensor Placement see: `sensor_placement/`
 
 ## data overview (train/test data)
 - n_subjects: 22
