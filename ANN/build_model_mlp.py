@@ -10,7 +10,7 @@ def build_model_feat(
     initializer: str="he_normal",
     lr: float=3e-4,
     leaky_alpha: float=0.1
-):
+) -> tf.keras.Model:
     """
     builds the parametrized mlp model to perform a gridsearch through the parameters
 
